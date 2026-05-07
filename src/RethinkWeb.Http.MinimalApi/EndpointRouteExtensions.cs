@@ -7,6 +7,8 @@ using RethinkWeb.Actions;
 using RethinkWeb.Auth;
 using RethinkWeb.Manifest;
 using RethinkWeb.Metadata;
+using RethinkWeb.Mutations;
+using RethinkWeb.Queries;
 using RethinkWeb.Rendering;
 using RethinkWeb.Storage;
 
@@ -43,6 +45,25 @@ public static class EndpointRouteExtensions
         {
             var manifest = builder.Build();
             return Results.Json(manifest, JsonOpts);
+        });
+
+        routes.MapPost("/_framework/queries/{queryName}", async (
+            HttpContext ctx,
+            string queryName,
+            IQueryRegistry queries,
+            IQueryDispatcher dispatcher) =>
+        {
+            var descriptor = queries.Find(queryName);
+            if (descriptor is null) return Results.NotFound();
+
+            var input = await ReadInput(ctx, descriptor.InputType);
+            var result = await dispatcher.InvokeAsync(queryName, input, ctx.RequestAborted);
+            if (!result.Authorized)
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+
+            return Results.Json(result.Output, JsonOpts);
         });
 
         foreach (var entity in entities.All)
@@ -135,7 +156,7 @@ public static class EndpointRouteExtensions
             var descriptor = actions.Find(entity.ClrType, actionName);
             if (descriptor is null) return Results.NotFound();
 
-            var input = await ReadActionInput(ctx, descriptor.InputType);
+            var input = await ReadInput(ctx, descriptor.InputType);
             var result = await dispatcher.InvokeAsync(slug, actionName, id, input, ctx.RequestAborted);
 
             if (!result.Authorized)
@@ -149,11 +170,43 @@ public static class EndpointRouteExtensions
             var html = await renderer.RenderEditAsync(entity, loaded);
             return await Wrap(ctx, renderer, $"Edit {entity.DisplayName}", html);
         });
+
+        routes.MapPost($"/{slug}/{{id:guid}}/mutations/{{mutationName}}", async (
+            HttpContext ctx,
+            Guid id,
+            string mutationName,
+            IServiceProvider sp,
+            IMutationRegistry mutations,
+            IMutationDispatcher dispatcher,
+            IEntityRenderer renderer) =>
+        {
+            var descriptor = mutations.Find(entity.ClrType, mutationName);
+            if (descriptor is null) return Results.NotFound();
+
+            var input = await ReadInput(ctx, descriptor.InputType);
+            var result = await dispatcher.InvokeAsync(slug, mutationName, id, input, ctx.RequestAborted);
+
+            if (!result.Authorized)
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+
+            var loaded = await GetEntity(sp, entity.ClrType, id);
+            if (loaded is null) return Results.NotFound();
+            var html = await renderer.RenderEditAsync(entity, loaded);
+            return await Wrap(ctx, renderer, $"Edit {entity.DisplayName}", html);
+        });
     }
 
-    private static async Task<object> ReadActionInput(HttpContext ctx, Type inputType)
+    private static async Task<object> ReadInput(HttpContext ctx, Type inputType)
     {
         var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        if (ctx.Request.ContentLength == 0)
+        {
+            return Activator.CreateInstance(inputType)
+                ?? throw new InvalidOperationException($"Could not create empty {inputType.Name} input.");
+        }
 
         // Prefer JSON body if present; fall back to form-encoded for HTMX submits.
         if (ctx.Request.HasJsonContentType())

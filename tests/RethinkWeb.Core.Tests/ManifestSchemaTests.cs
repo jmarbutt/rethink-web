@@ -46,7 +46,7 @@ public class ManifestSchemaTests
         actions.Register(typeof(SchemaTestAction));
 
         var builder = new ManifestBuilder(
-            entities, actions,
+            entities, actions, new Queries.QueryRegistry(), new Mutations.MutationRegistry(),
             new AllowAllAuthContext(),
             new FakeClock(DateTimeOffset.Parse("2026-05-06T10:00:00Z")));
 

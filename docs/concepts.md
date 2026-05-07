@@ -1,6 +1,6 @@
 # Concepts
 
-The mental model. Five primitives, one source of truth.
+The mental model. Server-side primitives, one manifest contract.
 
 ## 1. Entity
 
@@ -56,7 +56,45 @@ public string? EditPermission { get; init; } // permission to edit
 public string? Sample       { get; init; }   // placeholder used in docs/manifest
 ```
 
-## 3. Action
+## 3. Query
+
+A query is a safe, typed read capability. It does not require an entity id and should not mutate state.
+
+```csharp
+public sealed record ListTasksInput(bool? IncludeCompleted);
+public sealed record TaskListRow(Guid Id, string Title, bool Completed, DateTime? CompletedAt);
+public sealed record ListTasksResult(IReadOnlyList<TaskListRow> Tasks);
+
+[Query(
+    name: "tasks.list",
+    displayName: "List Tasks",
+    Description = "List tasks with an optional completed-task filter.",
+    Cache = QueryCacheMode.PerTenant,
+    CacheSeconds = 30,
+    DependsOn = ["tasks"])]
+public sealed class ListTasksQuery(IEntityStore<Todo> store)
+    : IQuery<ListTasksInput, ListTasksResult>
+{
+    public async Task<ListTasksResult> ExecuteAsync(
+        ListTasksInput input,
+        IQueryContext context,
+        CancellationToken ct)
+    {
+        ...
+    }
+}
+```
+
+Register with `.AddQuery<ListTasksQuery>()`. From there it appears in:
+
+- HTTP: `POST /_framework/queries/tasks.list`
+- MCP: tool name `tasks.list`
+- Manifest: listed in the top-level `queries` array with input schema, output schema, permission, MCP exposure, and cache policy
+- Future Inspector: runnable from a generated query explorer
+
+The default `IQueryCache` is a no-op. Cache metadata exists now so apps can later opt into per-tenant or per-user caching without changing query handlers.
+
+## 4. Mutation / Action
 
 A class implementing `IAction<TEntity, TInput, TOutput>` with `[Action(name, displayName)]`. Receives the loaded entity, a typed input DTO, and an `IActionContext` with auth/clock/event-bus.
 
@@ -87,7 +125,9 @@ Register with `.AddAction<MarkCompleteAction>()`. From there it's accessible as:
 - MCP: tool name `tasks.mark-complete` exposed via the official `ModelContextProtocol.AspNetCore` SDK at `/mcp` (Streamable HTTP transport). `inputSchema` is auto-generated from the `MarkCompleteInput` record. Connect via Claude Desktop, MCP Inspector, Cursor, etc. — see [`mcp-clients.md`](./mcp-clients.md).
 - Manifest: listed under the `tasks` entity's `actions` array
 
-## 4. Event
+`IAction<TEntity, TInput, TOutput>` remains the compatibility name for an entity-scoped mutation. New code can use `IMutation<TEntity, TInput, TOutput>` and `[Mutation]`; it appears under the entity's `mutations` array and can be invoked through `POST /tasks/{id}/mutations/{name}`.
+
+## 5. Event
 
 Two flavors:
 
@@ -125,7 +165,7 @@ The `IEventContext` passed to subscribers carries:
 
 In tests, swap in `FakeClock` and `FakeIdGenerator` for deterministic correlation IDs and timestamps.
 
-## 5. Manifest
+## 6. Manifest
 
 A JSON document at `/_framework/manifest`:
 
@@ -153,43 +193,51 @@ A JSON document at `/_framework/manifest`:
             "required": []
           }
         }
-      ]
+      ],
+      "mutations": []
+    }
+  ],
+  "queries": [
+    {
+      "name": "tasks.list",
+      "displayName": "List Tasks",
+      "cache": { "mode": "PerTenant", "durationSeconds": 30, "dependencies": ["tasks"] }
     }
   ]
 }
 ```
 
-The manifest is **the** source of truth. Three audiences consume it:
+The manifest is **the** public contract. Attributes and interfaces are the authoring model; the manifest is what clients consume. Three audiences consume it:
 
 - **Humans** — via the `/_framework` Inspector page (Phase 2) and `/_docs/{slug}` Markdown views
-- **MCP clients** — `/mcp/tools/list` reads it to advertise tools; `tools/call` dispatches via the action registry
+- **MCP clients** — `/mcp/tools/list` advertises exposed queries, mutations, and actions; `tools/call` dispatches through the relevant registry
 - **LLMs** — given the manifest scoped to a user's permissions plus recent lifecycle events, an LLM can answer "how does this work?" with full visibility
 
-The manifest **filters by user permission**. Entities/actions/fields the current `IAuthContext` can't access do not appear in the manifest at all. This is the mechanism that keeps the LLM/docs/MCP surfaces honest about what a given user is allowed to see.
+The manifest **filters by user permission**. Entities, fields, queries, mutations, and actions the current `IAuthContext` can't access do not appear in the manifest at all. This is the mechanism that keeps the LLM/docs/MCP surfaces honest about what a given user is allowed to see.
 
 ## How they fit
 
 ```
-                    [Entity attributes]
-                            │
-                            ↓
-                     EntityMetadata
-                    /     │       \
-                   ↓      ↓         ↓
-              Renderer  Manifest  FormBinder
-                   ↓      ↓         ↓
-                HTML   JSON      Entity update
-                                   ↓
-                                 Save
-                                   ↓
-                          EntitySaved<T> event
-                                   ↓
-                            Subscribers
-                                   ↓
-                          (more saves, side effects)
+              [Entity / Query / Mutation attributes]
+                              │
+                              ↓
+                       Runtime metadata
+                    /       │         \
+                   ↓        ↓          ↓
+              Renderer   Manifest   Dispatchers
+                   ↓        ↓          ↓
+                HTML      JSON    Query result / entity update
+                                             ↓
+                                           Save
+                                             ↓
+                                    EntitySaved<T> event
+                                             ↓
+                                      Subscribers
+                                             ↓
+                                (more saves, side effects)
 ```
 
-Same metadata. Three readers (renderer, manifest, binder). One write path. One event stream after writes.
+Same metadata. Multiple readers. One manifest contract. One event stream after writes.
 
 ## Where this is going (Phase 2+)
 

@@ -1,5 +1,6 @@
 using System.IO.Pipelines;
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,6 +35,8 @@ public class EndToEndTests : IClassFixture<WebApplicationFactory<Program>>
         var tasks = entities.EnumerateArray().Single(e => e.GetProperty("slug").GetString() == "tasks");
         tasks.GetProperty("actions").EnumerateArray()
             .Should().Contain(a => a.GetProperty("name").GetString() == "mark-complete");
+        doc.RootElement.GetProperty("queries").EnumerateArray()
+            .Should().Contain(q => q.GetProperty("name").GetString() == "tasks.list");
     }
 
     [Fact]
@@ -88,6 +91,19 @@ public class EndToEndTests : IClassFixture<WebApplicationFactory<Program>>
 
         var tools = await mcpClient.ListToolsAsync();
         tools.Should().Contain(t => t.Name == "tasks.mark-complete");
+        tools.Should().Contain(t => t.Name == "tasks.list");
+        tools.Should().Contain(t => t.Name == "tasks.rename");
+
+        var listTasks = tools.Single(t => t.Name == "tasks.list");
+        var queryResult = await listTasks.CallAsync(new Dictionary<string, object?>
+        {
+            ["input"] = new Dictionary<string, object?>
+            {
+                ["includeCompleted"] = true,
+            },
+        });
+        var queryText = string.Join(" | ", queryResult.Content.OfType<TextContentBlock>().Select(c => c.Text));
+        queryText.Should().Contain("Tasks").And.NotContain("ERROR");
 
         var markComplete = tools.Single(t => t.Name == "tasks.mark-complete");
         var result = await markComplete.CallAsync(new Dictionary<string, object?>
@@ -105,6 +121,41 @@ public class EndToEndTests : IClassFixture<WebApplicationFactory<Program>>
         var html = await httpClient.GetStringAsync($"/tasks/{todoId}");
         html.Should().Contain("name=\"Completed\" value=\"true\" checked");
         html.Should().Contain("name=\"CompletedAt\""); // present, with a value (don't pin the time)
+    }
+
+    [Fact]
+    public async Task Query_endpoint_returns_typed_query_result_without_entity_id()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/_framework/queries/tasks.list", new
+        {
+            includeCompleted = true,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        doc.RootElement.GetProperty("tasks").GetArrayLength().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Mutation_endpoint_dispatches_and_persists()
+    {
+        var client = _factory.CreateClient();
+        var todoId = await GetFirstTodoId(client);
+
+        var form = new FormUrlEncodedContent(
+        [
+            new("Title", "Renamed through mutation"),
+        ]);
+
+        var response = await client.PostAsync($"/tasks/{todoId}/mutations/rename", form);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var html = await client.GetStringAsync($"/tasks/{todoId}");
+        html.Should().Contain("value=\"Renamed through mutation\"");
     }
 
     private static async Task<Guid> GetFirstTodoId(HttpClient client)

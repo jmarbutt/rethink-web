@@ -1,6 +1,6 @@
 # Architecture
 
-## Five layers, abstractions first
+## Layers, abstractions first
 
 Every layer is defined by **interfaces in `RethinkWeb.Core`** with a **zero-dependency default implementation** that lives in the same package. Every external dependency (EF Core, Wolverine, Marten, MCP SDK) ships as a *separate adapter package* you opt into. `RethinkWeb.Core` references nothing outside `Microsoft.Extensions.*` abstractions.
 
@@ -16,10 +16,12 @@ Every layer is defined by **interfaces in `RethinkWeb.Core`** with a **zero-depe
 │                  HtmlRenderer for server-side static         │
 │                  rendering. Swap freely.                     │
 ├─────────────────────────────────────────────────────────────┤
-│  Action layer    IAction<TEntity, TInput, TOutput>,         │
-│                  IActionRegistry, IActionDispatcher.         │
-│                  Single definition surfaces as HTTP          │
-│                  endpoint, MCP tool, UI button, audit event. │
+│  Operation layer IQuery<TInput, TOutput>,                    │
+│                  IMutation<TEntity, TInput, TOutput>,        │
+│                  IAction<TEntity, TInput, TOutput>           │
+│                  compatibility, registries, dispatchers.      │
+│                  Single operation surfaces as HTTP, MCP,      │
+│                  manifest, and future renderer controls.      │
 ├─────────────────────────────────────────────────────────────┤
 │  Event layer     IEventBus + IEventSubscriber<T>.           │
 │                  Default: in-proc synchronous bus            │
@@ -34,7 +36,7 @@ Every layer is defined by **interfaces in `RethinkWeb.Core`** with a **zero-depe
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The **metadata system** (`[Entity]`, `[TextBox]`, `[SelectBox]`, etc.) lives in `Core` and is the single source of truth that all five layers consult.
+The **metadata system** (`[Entity]`, `[TextBox]`, `[Query]`, `[Mutation]`, etc.) lives in `Core` as the authoring model. The **manifest JSON** is the public contract that renderers, MCP clients, docs, LLMs, and the future Inspector consume.
 
 ## Pluggability rule
 
@@ -46,7 +48,7 @@ If a primitive is registered as `Singleton` but consumes `Scoped` services (e.g.
 
 | Package | Depends on | Purpose |
 |---|---|---|
-| `RethinkWeb.Core` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions` | Abstractions, attributes, in-proc defaults, registries, manifest builder. |
+| `RethinkWeb.Core` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions` | Abstractions, attributes, in-proc defaults, query/mutation/action registries, manifest builder. |
 | `RethinkWeb.Render.Razor` | `Core`, `Microsoft.AspNetCore.Components.Web` | Razor Components renderer using `HtmlRenderer`. Default `IEntityRenderer`. |
 | `RethinkWeb.Http.MinimalApi` | `Core`, ASP.NET Core | Endpoint mapper, form binder, HTMX detection. |
 | `RethinkWeb.Mcp` | `Core`, `ModelContextProtocol.AspNetCore` | Hosts a standards-compliant MCP server (Streamable HTTP transport) at `/mcp`. Builds the `McpServerTool` collection dynamically from `IActionRegistry`. |
@@ -56,6 +58,30 @@ If a primitive is registered as `Singleton` but consumes `Scoped` services (e.g.
 | `RethinkWeb.Sample.Chat` | Same | Real-time sample — two entities, action on a parent, HTMX-SSE for live updates. Demonstrates the escape hatch for hand-rolled HTML. |
 
 A user can build a working app with just `Core + Render.Razor + Http.MinimalApi + Store.EfCore`. No Wolverine, no Marten, no MCP. Pay-as-you-go.
+
+## Manifest as the public contract
+
+```text
+C# app code
+  Entities + fields
+  Queries
+  Mutations/actions
+  Events + triggers
+  Permissions
+        |
+        v
+Runtime metadata model
+        |
+        v
+Manifest JSON, scoped by tenant + user + permissions
+        |
+        +--> HTMX/Razor renderer for optimized end-user UX
+        +--> Inspector for dev/admin exploration and action testing
+        +--> MCP production surface for LLM clients
+        +--> Future renderers and documentation helpers
+```
+
+The MVC/HTMX app a developer creates is an optimized UX for end users. The framework's automatic surfaces, especially the Inspector and MCP, should read from the same manifest contract.
 
 ## Dependency direction
 
@@ -86,6 +112,7 @@ A user can build a working app with just `Core + Render.Razor + Http.MinimalApi 
 - **Razor itself** is not behind an interface. The renderer is. If you want a different templating engine, write a new `IEntityRenderer`.
 - **ASP.NET Core** is not behind an interface. The endpoint mapper is an extension method on `IEndpointRouteBuilder`. If you want a different HTTP host, write a different mapper package.
 - **The `[Entity]`/`[TextBox]`/etc. attributes** are not behind an interface. They are the data contract. Treat them as a versioned schema — additive changes only.
+- **Query read-only behavior** is semantic, not enforced by a sandbox. Queries receive a read-oriented context, but a handler can still inject services. Production apps should treat side-effecting queries as a contract violation.
 
 ## Where it gets harder, not easier
 

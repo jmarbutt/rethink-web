@@ -5,6 +5,8 @@ using RethinkWeb.Auth;
 using RethinkWeb.Events;
 using RethinkWeb.Manifest;
 using RethinkWeb.Metadata;
+using RethinkWeb.Mutations;
+using RethinkWeb.Queries;
 using RethinkWeb.Storage;
 using RethinkWeb.Tenancy;
 
@@ -20,6 +22,8 @@ public sealed class RethinkWebBuilder(IServiceCollection services)
 
     internal EntityRegistry EntityRegistry { get; } = new();
     internal ActionRegistry ActionRegistry { get; } = new();
+    internal QueryRegistry QueryRegistry { get; } = new();
+    internal MutationRegistry MutationRegistry { get; } = new();
 
     /// <summary>
     /// True after <see cref="UseMultiTenant{TResolver}"/> has been called. Subsequent
@@ -55,6 +59,20 @@ public sealed class RethinkWebBuilder(IServiceCollection services)
     {
         ActionRegistry.Register(typeof(TAction));
         Services.TryAddTransient<TAction>();
+        return this;
+    }
+
+    public RethinkWebBuilder AddQuery<TQuery>() where TQuery : class
+    {
+        QueryRegistry.Register(typeof(TQuery));
+        Services.TryAddTransient<TQuery>();
+        return this;
+    }
+
+    public RethinkWebBuilder AddMutation<TMutation>() where TMutation : class
+    {
+        MutationRegistry.Register(typeof(TMutation));
+        Services.TryAddTransient<TMutation>();
         return this;
     }
 
@@ -105,10 +123,15 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IEventBus, InProcEventBus>();
         services.TryAddScoped<IManifestBuilder, ManifestBuilder>();
         services.TryAddScoped<IActionDispatcher, ActionDispatcher>();
+        services.TryAddScoped<IQueryDispatcher, QueryDispatcher>();
+        services.TryAddScoped<IMutationDispatcher, MutationDispatcher>();
+        services.TryAddSingleton<IQueryCache, NullQueryCache>();
 
         var builder = new RethinkWebBuilder(services);
         services.AddSingleton<IEntityRegistry>(_ => builder.EntityRegistry);
         services.AddSingleton<IActionRegistry>(_ => builder.ActionRegistry);
+        services.AddSingleton<IQueryRegistry>(_ => builder.QueryRegistry);
+        services.AddSingleton<IMutationRegistry>(_ => builder.MutationRegistry);
         return builder;
     }
 }

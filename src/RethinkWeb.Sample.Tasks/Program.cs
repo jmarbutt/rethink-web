@@ -8,6 +8,7 @@ using RethinkWeb.Sample.Tasks;
 using RethinkWeb.Sample.Tasks.Actions;
 using RethinkWeb.Sample.Tasks.Entities;
 using RethinkWeb.Sample.Tasks.Events;
+using RethinkWeb.Sample.Tasks.Queries;
 using RethinkWeb.Store.EfCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,7 +19,9 @@ builder.Services
     .AddRethinkWeb()
     .AddEntity<Todo>()
     .UseEfCoreFor<Todo, TasksDb>()
+    .AddQuery<ListTasksQuery>()
     .AddAction<MarkCompleteAction>()
+    .AddMutation<RenameTaskMutation>()
     .AddEventSubscriber<EntitySaved<Todo>, StampCompletedAtSubscriber>()
     .UseRazorRenderer()
     .AddRethinkWebMcpServer();

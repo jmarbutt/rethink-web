@@ -30,7 +30,12 @@ public class AuthBoundariesTests
         entities.Register(typeof(SecretEntity));
         var actions = new Actions.ActionRegistry();
 
-        var manifest = new ManifestBuilder(entities, actions, new DenyAll(),
+        var manifest = new ManifestBuilder(
+            entities,
+            actions,
+            new Queries.QueryRegistry(),
+            new Mutations.MutationRegistry(),
+            new DenyAll(),
             new FakeClock(DateTimeOffset.Parse("2026-05-06T10:00:00Z"))).Build();
 
         manifest.Entities.Should().BeEmpty("user lacks 'admin.read' so the secret entity is hidden");
@@ -43,7 +48,12 @@ public class AuthBoundariesTests
         entities.Register(typeof(SecretEntity));
         var actions = new Actions.ActionRegistry();
 
-        var manifest = new ManifestBuilder(entities, actions, new GrantOnly("admin.read"),
+        var manifest = new ManifestBuilder(
+            entities,
+            actions,
+            new Queries.QueryRegistry(),
+            new Mutations.MutationRegistry(),
+            new GrantOnly("admin.read"),
             new FakeClock(DateTimeOffset.Parse("2026-05-06T10:00:00Z"))).Build();
 
         manifest.Entities.Should().ContainSingle(e => e.Slug == "secrets");

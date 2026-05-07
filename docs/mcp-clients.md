@@ -15,7 +15,7 @@ This page covers four common ways to test:
 dotnet run --project src/RethinkWeb.Sample.Tasks --urls http://localhost:5099
 ```
 
-Endpoint: `http://localhost:5099/mcp`. Transport: Streamable HTTP, stateless. Tools registered: one per `[Action]` declared in the app (currently `tasks.mark-complete`).
+Endpoint: `http://localhost:5099/mcp`. Transport: Streamable HTTP, stateless. Tools registered: one per exposed `[Query]`, `[Mutation]`, and compatibility `[Action]` declared in the app (currently `tasks.list`, `tasks.rename`, and `tasks.mark-complete`).
 
 ## 1. MCP Inspector (recommended for quick validation)
 
@@ -33,7 +33,7 @@ Then in the Inspector UI:
 
 You should see:
 - The `initialize` handshake succeed
-- The **Tools** tab list `tasks.mark-complete` with its auto-generated input schema (`entityId`, empty `input` object since `MarkCompleteInput` has no fields)
+- The **Tools** tab list `tasks.list`, `tasks.rename`, and `tasks.mark-complete` with auto-generated input schemas
 
 To invoke the tool, you need a real task ID. Get one quickly:
 
@@ -41,7 +41,17 @@ To invoke the tool, you need a real task ID. Get one quickly:
 curl -s http://localhost:5099/tasks | grep -o 'tasks/[a-f0-9-]\{36\}' | head -1
 ```
 
-Then in the Inspector's tool call form, paste:
+First, try the `tasks.list` query. In the Inspector's tool call form, paste:
+
+```json
+{
+  "input": {
+    "includeCompleted": true
+  }
+}
+```
+
+Then invoke `tasks.mark-complete` with the task id:
 
 ```json
 {
@@ -75,11 +85,11 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
 }
 ```
 
-Restart Claude Desktop. In a new chat, the tool icon should show `tasks.mark-complete` available. Ask Claude:
+Restart Claude Desktop. In a new chat, the tool icon should show `tasks.list`, `tasks.rename`, and `tasks.mark-complete` available. Ask Claude:
 
 > "Mark task `<paste-a-task-guid>` as complete."
 
-Claude will call `tasks.mark-complete` directly. (Listing tasks doesn't have a tool yet — that's a future addition once a list/query action concept is added to the framework. Today, paste a guid you got from `/tasks`.)
+Claude can call `tasks.list` first to find task ids, then call `tasks.mark-complete` for the selected task.
 
 ## 3. Cursor / Goose / other clients
 
@@ -110,6 +120,12 @@ await using var transport = new HttpClientTransport(new HttpClientTransportOptio
 await using var client = await McpClient.CreateAsync(transport);
 
 var tools = await client.ListToolsAsync();
+var list = tools.Single(t => t.Name == "tasks.list");
+var listResult = await list.CallAsync(new Dictionary<string, object?>
+{
+    ["input"] = new Dictionary<string, object?> { ["includeCompleted"] = true },
+});
+
 var tool = tools.Single(t => t.Name == "tasks.mark-complete");
 
 var result = await tool.CallAsync(new Dictionary<string, object?>
@@ -127,10 +143,10 @@ For tests against `WebApplicationFactory<Program>`, the test in this repo uses a
 
 **"An error occurred invoking 'tasks.mark-complete'"** — by SDK design, the protocol-level error message is generic. The framework's prototype build surfaces the real exception text in the tool result content (look for `ERROR in <action>: ...`). Read it. Common causes: invalid GUID for `entityId`, missing required input fields, the entity doesn't exist in the DB.
 
-**Inspector connects but no tools appear** — most likely the action has `ExposeToMcp = false` set on its `[Action]` attribute. Default is `true`.
+**Inspector connects but no tools appear** — most likely the operation has `ExposeToMcp = false` set on its `[Query]`, `[Mutation]`, or `[Action]` attribute. Default is `true`.
 
 **Claude Desktop can't reach the server** — `mcp-remote` requires the server to be reachable from Claude Desktop's process. If you're running the app in Docker or behind a firewall, expose the port. Also check that `--transport http-only` is set; otherwise `mcp-remote` may try SSE-only mode.
 
-**Schema looks wrong** — the SDK auto-generates the JSON Schema from the action's `TInput` record properties. Reflect on what your action actually expects: nullable properties become non-required, default values become defaults, `[Description]` attributes on properties (if added) become descriptions in the schema.
+**Schema looks wrong** — the SDK auto-generates the JSON Schema from the operation's `TInput` record properties. Reflect on what the handler actually expects: nullable properties become non-required, default values become defaults, `[Description]` attributes on properties (if added) become descriptions in the schema.
 
 **Want auth?** The MCP SDK supports OAuth and bearer tokens via the transport options. Wire `IAuthContext` in the framework first, then add the matching auth middleware in the host. Out of scope for the prototype.

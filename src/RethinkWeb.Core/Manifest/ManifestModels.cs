@@ -1,13 +1,14 @@
 namespace RethinkWeb.Manifest;
 
 /// <summary>
-/// Single source of truth: humans read this at /_docs, LLMs read this for context,
-/// MCP clients read this for tools/list. One document, three audiences.
+/// Public contract: humans read this at /_docs, LLMs read this for context,
+/// MCP clients and renderers read it for exposed capabilities.
 /// </summary>
 public sealed record ManifestDocument(
     string FrameworkVersion,
     DateTimeOffset GeneratedAt,
-    IReadOnlyList<ManifestEntity> Entities);
+    IReadOnlyList<ManifestEntity> Entities,
+    IReadOnlyList<ManifestQuery> Queries);
 
 public sealed record ManifestEntity(
     string Slug,
@@ -15,7 +16,8 @@ public sealed record ManifestEntity(
     string? ReadPermission,
     string? WritePermission,
     IReadOnlyList<ManifestField> Fields,
-    IReadOnlyList<ManifestAction> Actions);
+    IReadOnlyList<ManifestAction> Actions,
+    IReadOnlyList<ManifestMutation> Mutations);
 
 public sealed record ManifestField(
     string Name,
@@ -36,6 +38,31 @@ public sealed record ManifestAction(
     bool ExposeToMcp,
     JsonSchema InputSchema,
     JsonSchema OutputSchema);
+
+public sealed record ManifestMutation(
+    string Name,
+    string DisplayName,
+    string? Description,
+    string? Permission,
+    string? Icon,
+    bool ExposeToMcp,
+    JsonSchema InputSchema,
+    JsonSchema OutputSchema);
+
+public sealed record ManifestQuery(
+    string Name,
+    string DisplayName,
+    string? Description,
+    string? Permission,
+    bool ExposeToMcp,
+    ManifestQueryCache Cache,
+    JsonSchema InputSchema,
+    JsonSchema OutputSchema);
+
+public sealed record ManifestQueryCache(
+    string Mode,
+    int? DurationSeconds,
+    IReadOnlyList<string> Dependencies);
 
 /// <summary>Tiny JSON-Schema-ish representation. Enough for MCP tools.</summary>
 public sealed record JsonSchema(
