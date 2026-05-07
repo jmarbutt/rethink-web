@@ -12,10 +12,12 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="ModelContextProtocol" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RethinkWeb.Sample.Donor\RethinkWeb.Sample.Donor.csproj" />
+    <ProjectReference Include="..\..\src\RethinkWeb.Mcp\RethinkWeb.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

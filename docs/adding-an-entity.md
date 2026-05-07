@@ -92,7 +92,7 @@ You now have:
 - `GET /volunteers/{id}` — edit form with all six fields
 - `POST /volunteers/{id}` — form binding + save + `EntitySaved<Volunteer>` event publish
 - `GET /_framework/manifest` — Volunteer entity now appears with full field metadata
-- `GET /mcp/tools/list` — no Volunteer-specific tools yet (see [adding an action](./adding-an-action.md))
+- MCP server at `/mcp` — no Volunteer-specific tools yet (see [adding an action](./adding-an-action.md)); manifest entries flow into MCP automatically once you have actions
 
 ## 6. Test it (optional)
 

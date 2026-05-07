@@ -21,7 +21,8 @@ The bet under test: **HTMX + server-rendered metadata + unified actions can prod
 - [x] `IEntityStore<T>` with default `InMemoryEntityStore<T>`
 - [x] EF Core adapter (`EfCoreEntityStore<TEntity, TContext>` + `UseEfCoreFor`)
 - [x] `/_framework/manifest` JSON endpoint with permission filtering
-- [x] `/mcp/tools/list` + `/mcp/tools/call` HTTP endpoints with auto-generated input schemas
+- [x] **MCP server (Streamable HTTP transport)** at `/mcp` via the official `ModelContextProtocol.AspNetCore` SDK — Claude-Desktop / MCP-Inspector / Cursor compatible
+- [x] Dynamic MCP tool registration: one `McpServerTool` per registered action, JSON Schema auto-generated from `TInput`
 - [x] `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests
 - [x] `RethinkWeb.Sample.Donor` reference app
 - [x] 12 tests passing across 3 test projects
@@ -54,7 +55,8 @@ The killer Phase 2 feature is the **Framework Inspector**. It's the one that del
 - [ ] **Temporal adapter** — `RethinkWeb.Workflow.Temporal` for workflows that span months/services
 - [ ] **Marten event-sourced store** — `RethinkWeb.Store.Marten` for entities that want full event sourcing
 - [ ] **LLM doc-helper adapter** — `RethinkWeb.Llm.Anthropic` (and OpenAI variant) — answers user questions using manifest + lifecycle as context, with mandatory "show me what the LLM saw" transparency
-- [ ] **MCP Streamable HTTP transport** — replaces the current plain-HTTP MCP shape so Claude Desktop and other real MCP clients can connect
+- [ ] **MCP OAuth + auth wiring** — the SDK supports OAuth/bearer; framework needs to bind it to `IAuthContext` so MCP tool calls respect the same permission model as web requests
+- [ ] **MCP error-handling request filter** — replace the "surface inner exception in tool result text" prototype hack with a proper filter that logs internally and returns generic errors to clients
 - [ ] **HTMX SSE adapter** — fakes real-time updates for "another user just changed this donor" without going stateful
 - [ ] **`/_docs/{entity}` Markdown renderer** — generates human-readable docs from the manifest, scoped to user permissions
 - [ ] **Mobile JSON-API renderer** — alternate `IEntityRenderer` that emits JSON instead of HTML, for mobile clients that don't want a webview

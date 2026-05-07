@@ -49,7 +49,7 @@ If a primitive is registered as `Singleton` but consumes `Scoped` services (e.g.
 | `RethinkWeb.Core` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions` | Abstractions, attributes, in-proc defaults, registries, manifest builder. |
 | `RethinkWeb.Render.Razor` | `Core`, `Microsoft.AspNetCore.Components.Web` | Razor Components renderer using `HtmlRenderer`. Default `IEntityRenderer`. |
 | `RethinkWeb.Http.MinimalApi` | `Core`, ASP.NET Core | Endpoint mapper, form binder, HTMX detection. |
-| `RethinkWeb.Mcp` | `Core`, ASP.NET Core | `tools/list` + `tools/call` HTTP endpoints. |
+| `RethinkWeb.Mcp` | `Core`, `ModelContextProtocol.AspNetCore` | Hosts a standards-compliant MCP server (Streamable HTTP transport) at `/mcp`. Builds the `McpServerTool` collection dynamically from `IActionRegistry`. |
 | `RethinkWeb.Store.EfCore` | `Core`, `Microsoft.EntityFrameworkCore` | Swap-in `EfCoreEntityStore<TEntity, TContext>`. |
 | `RethinkWeb.Sample.Donor` | All of the above + `Microsoft.EntityFrameworkCore.Sqlite` | Reference app. |
 

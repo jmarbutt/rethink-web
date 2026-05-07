@@ -73,9 +73,15 @@ builder.Services
 
 ### As an MCP tool
 
+The framework hosts a standards-compliant MCP server at `/mcp` using the official `ModelContextProtocol.AspNetCore` SDK (Streamable HTTP transport). Connect any MCP client and the tool appears automatically.
+
+Quickest validation — open **MCP Inspector**:
+
 ```bash
-curl -s http://localhost:5099/mcp/tools/list | jq '.tools[] | select(.name == "volunteers.mark-inactive")'
+npx @modelcontextprotocol/inspector
 ```
+
+Set transport to **Streamable HTTP**, URL `http://localhost:5099/mcp`, click **Connect**. The Tools tab now lists `volunteers.mark-inactive` with its auto-generated input schema:
 
 ```json
 {
@@ -84,27 +90,28 @@ curl -s http://localhost:5099/mcp/tools/list | jq '.tools[] | select(.name == "v
   "inputSchema": {
     "type": "object",
     "properties": {
-      "entityId": { "type": "string", "format": "uuid" },
-      "reason":   { "type": "string" }
+      "entityId": { "type": "string" },
+      "input": {
+        "type": "object",
+        "properties": { "reason": { "type": "string" } },
+        "required": ["reason"]
+      }
     },
-    "required": ["entityId", "reason"]
+    "required": ["entityId", "input"]
   }
 }
 ```
 
-Invoke it:
+In the Inspector's call form, paste:
 
-```bash
-curl -s -X POST http://localhost:5099/mcp/tools/call \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "volunteers.mark-inactive",
-    "arguments": {
-      "entityId": "11111111-1111-1111-1111-111111111111",
-      "reason": "Moved out of state"
-    }
-  }'
+```json
+{
+  "entityId": "<your-volunteer-guid>",
+  "input": { "reason": "Moved out of state" }
+}
 ```
+
+Click **Run**. See [`mcp-clients.md`](./mcp-clients.md) for Claude Desktop, Cursor, and programmatic-C# setups.
 
 ### As an HTTP endpoint
 

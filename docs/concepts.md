@@ -82,7 +82,7 @@ public sealed class UpdateAddressAction(IEntityStore<Donor> store)
 Register with `.AddAction<UpdateAddressAction>()`. From there it's accessible as:
 
 - HTTP: `POST /donors/{id}/actions/update-address` (Phase 2 — currently dispatched via the form-post path; see `EndpointRouteExtensions.cs`)
-- MCP: tool name `donors.update-address` with `inputSchema` auto-generated from the `AddressInput` record
+- MCP: tool name `donors.update-address` exposed via the official `ModelContextProtocol.AspNetCore` SDK at `/mcp` (Streamable HTTP transport). `inputSchema` is auto-generated from the `AddressInput` record. Connect via Claude Desktop, MCP Inspector, Cursor, etc. — see [`mcp-clients.md`](./mcp-clients.md).
 - Manifest: listed under the `donors` entity's `actions` array
 
 ## 4. Event

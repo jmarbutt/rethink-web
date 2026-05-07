@@ -65,7 +65,8 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 | HTMX-aware endpoint mapper (returns fragments to `HX-Request`, layouts otherwise) | ✅ |
 | Form binding and persistence via reflective EF Core store | ✅ |
 | `IAction<TEntity, TInput, TOutput>` with auto-registered HTTP endpoint | ✅ |
-| MCP `tools/list` + `tools/call` over plain HTTP, schema generated from action input | ✅ |
+| MCP server (Streamable HTTP transport) via official `ModelContextProtocol` SDK — Claude Desktop / MCP Inspector compatible | ✅ |
+| MCP tools dynamically registered from `IActionRegistry`; JSON Schema auto-generated from action input record | ✅ |
 | `EntitySaved<TEntity>` event auto-published after every save | ✅ |
 | `IEventSubscriber<T>` pattern for computed fields + side effects | ✅ |
 | Manifest at `/_framework/manifest` (entities + fields + actions + permissions) | ✅ |
@@ -79,7 +80,6 @@ See [`docs/roadmap.md`](./docs/roadmap.md). Headlines:
 
 - **Workflows + triggers + per-entity lifecycle timeline** — the killer feature for multi-day flows like "ACH donation pending for 3 days"
 - **Framework Inspector page** at `/_framework` — Django-Admin-meets-OpenTelemetry for the framework's own metadata
-- **MCP Streamable HTTP transport** — current implementation is plain HTTP JSON, fine for testing, not Claude-Desktop-compatible
 - **Wolverine / Marten / Hangfire adapter packages**
 - **Per-field permission rendering** — auth metadata exists but renderer doesn't filter yet
 - **LLM doc helper** with explicit "show me what the LLM saw" transparency
@@ -96,7 +96,7 @@ Then:
 - Open the URL printed in the console (default `http://localhost:5000`)
 - Click a donor, edit, save — HTMX swaps the form fragment in place
 - Visit `/_framework/manifest` to see the JSON description of the app
-- POST to `/mcp/tools/list` and `/mcp/tools/call` to invoke actions as MCP tools
+- Connect an MCP client (Claude Desktop, MCP Inspector, Cursor, etc.) to `http://localhost:5000/mcp` — see [`docs/mcp-clients.md`](./docs/mcp-clients.md) for client-specific config
 
 ## Run the tests
 
@@ -112,15 +112,16 @@ dotnet test
 - [`docs/concepts.md`](./docs/concepts.md) — entities, fields, actions, events, manifest mental model
 - [`docs/adding-an-entity.md`](./docs/adding-an-entity.md) — practical walkthrough
 - [`docs/adding-an-action.md`](./docs/adding-an-action.md) — practical walkthrough including MCP exposure
+- [`docs/mcp-clients.md`](./docs/mcp-clients.md) — connect Claude Desktop / MCP Inspector / Cursor / programmatic clients
 - [`docs/testing.md`](./docs/testing.md) — test patterns per layer, deterministic-by-default rules
 - [`docs/roadmap.md`](./docs/roadmap.md) — what's done, what's Phase 2, what's deliberately not
 
 ## Honest caveats
 
 - **The author has built something like this 3+ times before.** Each prior version shipped value internally but never reached "mass use." The framework pattern itself is not the failure mode — escape hatches for "the one weird screen" are. Every primitive in here is meant to fail open: write a Razor partial directly when the metadata renderer doesn't fit.
-- **The MCP transport is shaped right but not standards-compliant.** `/mcp/tools/list` and `/mcp/tools/call` are plain HTTP JSON — they prove the unification works but won't talk to Claude Desktop until Streamable HTTP is wired up. Phase 2.
 - **`FormBinder` is reflection-heavy.** Production would replace it with FastEndpoints/MVC binding or a source generator. Fine for the prototype.
-- **No security review.** Don't put this on the internet without an `IAuthContext` implementation that isn't `AllowAllAuthContext`.
+- **No security review.** Don't put this on the internet without an `IAuthContext` implementation that isn't `AllowAllAuthContext`. Don't expose `/mcp` publicly without auth — the MCP SDK supports OAuth but it's not wired up here.
+- **MCP tool error messages are intentionally verbose.** The current implementation surfaces inner exception details in tool result text to help debug the prototype. Flip the catch in `RethinkWebMcpToolCollection` to `throw` (or wire the SDK's error-handling request filter) before exposing this beyond your local machine — otherwise stack traces leak to MCP clients.
 
 ## License
 

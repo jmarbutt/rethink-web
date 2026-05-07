@@ -24,7 +24,8 @@ builder.Services
     .UseEfCoreFor<Donation, SampleContext>()
     .AddAction<UpdateAddressAction>()
     .AddEventSubscriber<EntitySaved<Donation>, RecomputeDeductibleSubscriber>()
-    .UseRazorRenderer();
+    .UseRazorRenderer()
+    .AddRethinkWebMcpServer();
 
 var app = builder.Build();
 
@@ -55,7 +56,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.MapRethinkWeb();
-app.MapRethinkWebMcp();
+app.MapMcp("/mcp");
 
 app.Run();
 
