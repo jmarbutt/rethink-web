@@ -24,8 +24,14 @@ public sealed class RethinkWebBuilder(IServiceCollection services)
     {
         EntityRegistry.Register(typeof(TEntity));
 
-        // Default to in-memory store; user can replace with EF Core etc. via TryAdd loses to user.
-        Services.TryAddSingleton<IEntityStore<TEntity>, InMemoryEntityStore<TEntity>>();
+        // Default to in-memory store, wrapped in PublishingEntityStore so EntitySaved<T>
+        // fires on every save regardless of write path. Adapter packages
+        // (UseEfCoreFor, UseMartenFor, etc.) replace this and re-wrap themselves.
+        Services.TryAddSingleton<InMemoryEntityStore<TEntity>>();
+        Services.TryAddScoped<IEntityStore<TEntity>>(sp =>
+            new PublishingEntityStore<TEntity>(
+                sp.GetRequiredService<InMemoryEntityStore<TEntity>>(),
+                sp.GetRequiredService<IEventBus>()));
         return this;
     }
 

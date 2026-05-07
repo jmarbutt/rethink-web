@@ -25,7 +25,12 @@ The bet under test: **HTMX + server-rendered metadata + unified actions can prod
 - [x] Dynamic MCP tool registration: one `McpServerTool` per registered action, JSON Schema auto-generated from `TInput`
 - [x] `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests
 - [x] `RethinkWeb.Sample.Donor` reference app
-- [x] 12 tests passing across 3 test projects
+- [x] **`PublishingEntityStore<T>` decorator** — `EntitySaved<T>` fires from EVERY save path (HTMX form, action via dispatcher, MCP tool, future workflow), with AsyncLocal recursion guard for subscriber re-saves
+- [x] **Explicit `POST /{slug}/{id}/actions/{name}`** endpoint — accepts form-encoded or JSON input, dispatches via `IActionDispatcher`, returns HTMX-aware response
+- [x] **Server-enforced `Required`** in `FormBinder` (collects errors, returns HTTP 422)
+- [x] **HTTP-level permission enforcement**: `entity.ReadPermission` on GET, `entity.WritePermission` on POST + actions, per-field `EditPermission` skip in `FormBinder`
+- [x] **JSON Schema required-ness** uses `NullabilityInfoContext` so non-nullable strings show as required (vs the earlier `!IsClass` heuristic that always marked them optional)
+- [x] 20 tests passing across 3 test projects
 
 The MVP exists to be poked at. Spend two hours of "donor admin work" in the sample app. If you don't miss React, the bet is paying.
 
@@ -38,7 +43,7 @@ Build these only if the prototype gets daily use. Each is a meaningful chunk of 
 - [ ] **Lifecycle stream** — `IEntityLifecycle<TEntity>` queryable timeline of events/actions/workflow steps per entity
 - [ ] **Lifecycle timeline view** — built-in renderer kind, no per-app code
 - [ ] **Framework Inspector** — `/_framework` admin UI listing entities, actions, events+subscribers, triggers, workflows, recent execution traces, permission map. Django-Admin-meets-OpenTelemetry for the framework's own metadata.
-- [ ] **Per-field permission filtering in the renderer** — `IAuthContext` is consulted; fields the user can't see don't render; fields they can't edit render disabled
+- [ ] **Per-field permission filtering in the *renderer*** — server-side write enforcement is in (per-field `EditPermission` is consulted in `FormBinder`); the renderer still draws all fields. Phase 2 makes the renderer consult `IAuthContext` so unauthorized fields don't display, and editable-but-not-by-this-user fields render disabled.
 - [ ] **More renderer kinds** — Card, Detail, Dashboard
 - [ ] **Hangfire workflow adapter** — `RethinkWeb.Workflow.Hangfire` for durable jobs / scheduled steps
 - [ ] **`RethinkWeb.Testing` package** extracted from inline test fakes — `TestHost`, `EventBusAssertions`, `WorkflowRunner`, `ActionInvoker<T>`

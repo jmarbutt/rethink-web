@@ -17,20 +17,23 @@
             <input type="number"
                    name="@Metadata.Name"
                    value="@(Value?.ToString())"
-                   disabled="@Metadata.Attribute.Disabled" />
+                   disabled="@Metadata.Attribute.Disabled"
+                   required="@Metadata.Attribute.Required" />
             break;
         case FieldKind.Currency:
             <input type="number"
                    step="0.01"
                    name="@Metadata.Name"
                    value="@(Value?.ToString())"
-                   disabled="@Metadata.Attribute.Disabled" />
+                   disabled="@Metadata.Attribute.Disabled"
+                   required="@Metadata.Attribute.Required" />
             break;
         case FieldKind.Date:
             <input type="date"
                    name="@Metadata.Name"
                    value="@FormatDate(Value)"
-                   disabled="@Metadata.Attribute.Disabled" />
+                   disabled="@Metadata.Attribute.Disabled"
+                   required="@Metadata.Attribute.Required" />
             break;
         case FieldKind.Checkbox:
             <input type="checkbox"
@@ -38,9 +41,13 @@
                    value="true"
                    checked="@(Value is bool b && b)"
                    disabled="@Metadata.Attribute.Disabled" />
+            @* HTML 'required' on checkbox means "must be checked" — usually not the
+               intended semantic for boolean fields. Skip. *@
             break;
         case FieldKind.Select:
-            <select name="@Metadata.Name" disabled="@Metadata.Attribute.Disabled">
+            <select name="@Metadata.Name"
+                    disabled="@Metadata.Attribute.Disabled"
+                    required="@Metadata.Attribute.Required">
                 <option value="">— select —</option>
             </select>
             break;

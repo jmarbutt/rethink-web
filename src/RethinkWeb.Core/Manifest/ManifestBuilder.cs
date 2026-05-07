@@ -71,6 +71,10 @@ public sealed class ManifestBuilder(
     /// <summary>
     /// Tiny reflection-based JSON Schema builder. Enough for MCP tool schemas.
     /// Recursive nested types are NOT handled — keep action input DTOs flat for the prototype.
+    ///
+    /// Required-ness uses NullabilityInfoContext so non-nullable reference types
+    /// (e.g. <c>string Name</c>) are correctly marked required, while nullable
+    /// reference types (<c>string? Notes</c>) are optional.
     /// </summary>
     private static JsonSchema BuildSchema(Type type)
     {
@@ -89,17 +93,32 @@ public sealed class ManifestBuilder(
                 Required: []);
         }
 
-        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .ToDictionary(
-                p => CamelCase(p.Name),
-                p => new JsonSchemaProperty(JsonTypeFor(Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType)));
+        var nullCtx = new NullabilityInfoContext();
+        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
-        var required = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => Nullable.GetUnderlyingType(p.PropertyType) is null && !p.PropertyType.IsClass)
+        var props = properties.ToDictionary(
+            p => CamelCase(p.Name),
+            p => new JsonSchemaProperty(JsonTypeFor(Nullable.GetUnderlyingType(p.PropertyType) ?? p.PropertyType)));
+
+        var required = properties
+            .Where(p => IsRequiredByNullability(p, nullCtx))
             .Select(p => CamelCase(p.Name))
             .ToList();
 
         return new JsonSchema("object", props, required);
+    }
+
+    private static bool IsRequiredByNullability(PropertyInfo p, NullabilityInfoContext ctx)
+    {
+        // Value types: required iff the property is non-nullable (Nullable<T> means optional).
+        if (p.PropertyType.IsValueType)
+        {
+            return Nullable.GetUnderlyingType(p.PropertyType) is null;
+        }
+
+        // Reference types: read the C# 8 nullable annotation. NotNull = required.
+        var info = ctx.Create(p);
+        return info.WriteState == NullabilityState.NotNull;
     }
 
     private static string JsonTypeFor(Type t)

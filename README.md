@@ -67,12 +67,15 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 | `IAction<TEntity, TInput, TOutput>` with auto-registered HTTP endpoint | ✅ |
 | MCP server (Streamable HTTP transport) via official `ModelContextProtocol` SDK — Claude Desktop / MCP Inspector compatible | ✅ |
 | MCP tools dynamically registered from `IActionRegistry`; JSON Schema auto-generated from action input record | ✅ |
-| `EntitySaved<TEntity>` event auto-published after every save | ✅ |
+| `EntitySaved<TEntity>` event auto-published after every save (HTMX form post, action via dispatcher, MCP tool call — all flow through `PublishingEntityStore<T>`) | ✅ |
+| Server-enforced `Required` validation in `FormBinder` (returns HTTP 422 on missing required fields) | ✅ |
+| HTTP-level `ReadPermission` / `WritePermission` enforcement on entity routes; per-field `EditPermission` skip in `FormBinder` | ✅ |
+| Explicit `POST /{slug}/{id}/actions/{name}` endpoint that dispatches via `IActionDispatcher` | ✅ |
 | `IEventSubscriber<T>` pattern for computed fields + side effects | ✅ |
 | Manifest at `/_framework/manifest` (entities + fields + actions + permissions) | ✅ |
 | In-proc default implementations of every cross-cutting concern | ✅ |
 | `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests | ✅ |
-| 12 tests passing across 3 test projects (xUnit + Verify snapshots + WebApplicationFactory) | ✅ |
+| 20 tests passing across 3 test projects (xUnit + Verify snapshots + WebApplicationFactory + real `McpClient` ↔ `McpServer` over in-memory pipes) | ✅ |
 
 ## What's deferred (Phase 2+)
 
@@ -119,8 +122,9 @@ dotnet test
 ## Honest caveats
 
 - **The author has built something like this 3+ times before.** Each prior version shipped value internally but never reached "mass use." The framework pattern itself is not the failure mode — escape hatches for "the one weird screen" are. Every primitive in here is meant to fail open: write a Razor partial directly when the metadata renderer doesn't fit.
-- **`FormBinder` is reflection-heavy.** Production would replace it with FastEndpoints/MVC binding or a source generator. Fine for the prototype.
-- **No security review.** Don't put this on the internet without an `IAuthContext` implementation that isn't `AllowAllAuthContext`. Don't expose `/mcp` publicly without auth — the MCP SDK supports OAuth but it's not wired up here.
+- **`FormBinder` is reflection-heavy.** Production would replace it with FastEndpoints/MVC binding or a source generator. Fine for the prototype. It does enforce `Required` and `EditPermission` server-side; missing required fields return HTTP 422.
+- **No security review.** Don't put this on the internet without an `IAuthContext` implementation that isn't `AllowAllAuthContext`. The framework consults `IAuthContext` on entity GET/POST/actions and per-field edits, but the default context grants everything — wire your real one. Don't expose `/mcp` publicly without auth — the MCP SDK supports OAuth but it's not bound to `IAuthContext` here yet.
+- **Renderer doesn't filter fields by `ReadPermission` yet** — server-side write enforcement is in (`FormBinder` skips fields the user can't edit), but the rendered HTML shows all fields. Don't rely on hiding sensitive fields via metadata until Phase 2 wires the renderer-side filter.
 - **MCP tool error messages are intentionally verbose.** The current implementation surfaces inner exception details in tool result text to help debug the prototype. Flip the catch in `RethinkWebMcpToolCollection` to `throw` (or wire the SDK's error-handling request filter) before exposing this beyond your local machine — otherwise stack traces leak to MCP clients.
 
 ## License

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
+using RethinkWeb.Auth;
 using RethinkWeb.Metadata;
 
 namespace RethinkWeb.Http;
@@ -9,19 +10,60 @@ namespace RethinkWeb.Http;
 /// Binds form values to entity properties by name. Reflection-based, prototype-grade.
 /// Production would replace this with FastEndpoints/MVC binding, or generate strongly-typed
 /// binders via source generators.
+///
+/// Enforces:
+///   - <c>Required</c> — missing/blank field collected as a validation error
+///   - <c>EditPermission</c> — silently skipped if the user lacks the permission
+///                             (don't trust the client)
+///   - <c>Disabled</c> — silently skipped (read-only fields)
 /// </summary>
 internal static class FormBinder
 {
-    public static void BindToEntity(IFormCollection form, EntityMetadata metadata, object entity)
+    /// <summary>
+    /// Binds form values to entity properties. Returns the list of validation errors,
+    /// or empty if all fields bound cleanly.
+    /// </summary>
+    public static IReadOnlyList<string> BindToEntity(
+        IFormCollection form,
+        EntityMetadata metadata,
+        object entity,
+        IAuthContext auth)
     {
+        var errors = new List<string>();
+
         foreach (var field in metadata.Fields)
         {
             if (field.Attribute.Disabled) continue;
+            if (field.Attribute.EditPermission is not null
+                && !auth.HasPermission(field.Attribute.EditPermission))
+            {
+                continue;
+            }
 
             var raw = form[field.Name].ToString();
-            var value = ConvertValue(raw, field.Property);
-            field.SetValue(entity, value);
+
+            if (field.Attribute.Required && string.IsNullOrWhiteSpace(raw))
+            {
+                // Checkbox absence on form is "false", not "missing required true".
+                if (field.Attribute.Kind != FieldKind.Checkbox)
+                {
+                    errors.Add($"{field.Attribute.Label} is required.");
+                    continue;
+                }
+            }
+
+            try
+            {
+                var value = ConvertValue(raw, field.Property);
+                field.SetValue(entity, value);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{field.Attribute.Label}: {ex.Message}");
+            }
         }
+
+        return errors;
     }
 
     private static object? ConvertValue(string raw, PropertyInfo property)

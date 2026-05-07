@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using RethinkWeb.Events;
+using RethinkWeb.Actions;
+using RethinkWeb.Auth;
 using RethinkWeb.Manifest;
 using RethinkWeb.Metadata;
 using RethinkWeb.Rendering;
@@ -56,8 +57,15 @@ public static class EndpointRouteExtensions
     {
         var slug = entity.Slug;
 
-        routes.MapGet($"/{slug}", async (HttpContext ctx, IServiceProvider sp, IEntityRenderer renderer) =>
+        routes.MapGet($"/{slug}", async (
+            HttpContext ctx,
+            IServiceProvider sp,
+            IAuthContext auth,
+            IEntityRenderer renderer) =>
         {
+            if (entity.ReadPermission is not null && !auth.HasPermission(entity.ReadPermission))
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+
             var list = await ListEntities(sp, entity.ClrType);
             var grid = await renderer.RenderGridAsync(entity, list);
             return await Wrap(ctx, renderer, $"{entity.DisplayName} list", grid);
@@ -67,8 +75,12 @@ public static class EndpointRouteExtensions
             HttpContext ctx,
             Guid id,
             IServiceProvider sp,
+            IAuthContext auth,
             IEntityRenderer renderer) =>
         {
+            if (entity.ReadPermission is not null && !auth.HasPermission(entity.ReadPermission))
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+
             var loaded = await GetEntity(sp, entity.ClrType, id);
             if (loaded is null) return Results.NotFound();
             var form = await renderer.RenderEditAsync(entity, loaded);
@@ -79,15 +91,23 @@ public static class EndpointRouteExtensions
             HttpContext ctx,
             Guid id,
             IServiceProvider sp,
+            IAuthContext auth,
             IEntityRenderer renderer) =>
         {
+            if (entity.WritePermission is not null && !auth.HasPermission(entity.WritePermission))
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+
             var loaded = await GetEntity(sp, entity.ClrType, id);
             if (loaded is null) return Results.NotFound();
 
             var form = await ctx.Request.ReadFormAsync();
-            FormBinder.BindToEntity(form, entity, loaded);
+            var errors = FormBinder.BindToEntity(form, entity, loaded, auth);
+            if (errors.Count > 0)
+            {
+                return Results.UnprocessableEntity(string.Join("\n", errors));
+            }
+            // PublishingEntityStore decorator publishes EntitySaved<T> from inside Save.
             await SaveEntity(sp, entity.ClrType, loaded);
-            await PublishEntitySaved(sp, entity.ClrType, loaded, ctx.RequestAborted);
 
             // Re-load: subscribers may have mutated and re-saved the entity.
             loaded = (await GetEntity(sp, entity.ClrType, id))!;
@@ -96,6 +116,57 @@ public static class EndpointRouteExtensions
             // HTMX: return only the fragment so it swaps in place. Non-HTMX: wrap in layout.
             return await Wrap(ctx, renderer, $"Edit {entity.DisplayName}", html);
         });
+
+        routes.MapPost($"/{slug}/{{id:guid}}/actions/{{actionName}}", async (
+            HttpContext ctx,
+            Guid id,
+            string actionName,
+            IServiceProvider sp,
+            IActionRegistry actions,
+            IActionDispatcher dispatcher,
+            IAuthContext auth,
+            IEntityRenderer renderer) =>
+        {
+            // Entity write permission gates actions too — you can't act on what you can't write.
+            // Per-action Permission is checked separately by ActionDispatcher.
+            if (entity.WritePermission is not null && !auth.HasPermission(entity.WritePermission))
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+            var descriptor = actions.Find(entity.ClrType, actionName);
+            if (descriptor is null) return Results.NotFound();
+
+            var input = await ReadActionInput(ctx, descriptor.InputType);
+            var result = await dispatcher.InvokeAsync(slug, actionName, id, input, ctx.RequestAborted);
+
+            if (!result.Authorized)
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+
+            // Action saved (or didn't); re-render the edit form so HTMX can swap.
+            var loaded = await GetEntity(sp, entity.ClrType, id);
+            if (loaded is null) return Results.NotFound();
+            var html = await renderer.RenderEditAsync(entity, loaded);
+            return await Wrap(ctx, renderer, $"Edit {entity.DisplayName}", html);
+        });
+    }
+
+    private static async Task<object> ReadActionInput(HttpContext ctx, Type inputType)
+    {
+        var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
+        // Prefer JSON body if present; fall back to form-encoded for HTMX submits.
+        if (ctx.Request.HasJsonContentType())
+        {
+            return await ctx.Request.ReadFromJsonAsync(inputType, jsonOpts)
+                ?? throw new InvalidOperationException("Empty JSON body for action input.");
+        }
+
+        var form = await ctx.Request.ReadFormAsync();
+        var dict = form.ToDictionary(kv => kv.Key, kv => (object?)kv.Value.ToString());
+        var json = JsonSerializer.Serialize(dict);
+        return JsonSerializer.Deserialize(json, inputType, jsonOpts)
+            ?? throw new InvalidOperationException($"Could not bind form to {inputType.Name}.");
     }
 
     private static async Task<IResult> Wrap(
@@ -143,13 +214,4 @@ public static class EndpointRouteExtensions
         await task;
     }
 
-    private static async Task PublishEntitySaved(IServiceProvider sp, Type entityType, object entity, CancellationToken ct)
-    {
-        var bus = sp.GetRequiredService<IEventBus>();
-        var eventType = typeof(EntitySaved<>).MakeGenericType(entityType);
-        var evt = Activator.CreateInstance(eventType, entity)!;
-        var publish = typeof(IEventBus).GetMethod(nameof(IEventBus.PublishAsync))!.MakeGenericMethod(eventType);
-        var task = (Task)publish.Invoke(bus, [evt, ct])!;
-        await task;
-    }
 }

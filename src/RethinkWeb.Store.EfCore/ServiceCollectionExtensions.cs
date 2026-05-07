@@ -15,9 +15,13 @@ public static class ServiceCollectionExtensions
         where TEntity : class
         where TContext : DbContext
     {
-        // Replace registration: we win because we run after AddEntity()'s TryAdd.
+        // Replace registration. Wrap in PublishingEntityStore so EntitySaved<T> still
+        // fires across this write path (HTTP, action, MCP — all flow through here).
         builder.Services.RemoveAll<IEntityStore<TEntity>>();
-        builder.Services.AddScoped<IEntityStore<TEntity>, EfCoreEntityStore<TEntity, TContext>>();
+        builder.Services.AddScoped<IEntityStore<TEntity>>(sp =>
+            new PublishingEntityStore<TEntity>(
+                new EfCoreEntityStore<TEntity, TContext>(sp.GetRequiredService<TContext>()),
+                sp.GetRequiredService<RethinkWeb.Events.IEventBus>()));
         return builder;
     }
 }
