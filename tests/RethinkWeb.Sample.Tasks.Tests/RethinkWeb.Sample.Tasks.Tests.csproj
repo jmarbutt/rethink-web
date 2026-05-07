@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>RethinkWeb.Sample.Donor.Tests</RootNamespace>
+    <RootNamespace>RethinkWeb.Sample.Tasks.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\RethinkWeb.Sample.Donor\RethinkWeb.Sample.Donor.csproj" />
+    <ProjectReference Include="..\..\src\RethinkWeb.Sample.Tasks\RethinkWeb.Sample.Tasks.csproj" />
     <ProjectReference Include="..\..\src\RethinkWeb.Mcp\RethinkWeb.Mcp.csproj" />
   </ItemGroup>
 

@@ -1,40 +1,38 @@
 # Adding an entity
 
-End-to-end walkthrough adding a `Volunteer` entity to the sample app. About five minutes.
+End-to-end walkthrough adding a `Project` entity to the Tasks sample. About five minutes.
 
 ## 1. Define the entity
 
-Create `src/RethinkWeb.Sample.Donor/Entities/Volunteer.cs`:
+Create `src/RethinkWeb.Sample.Tasks/Entities/Project.cs`:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
 using RethinkWeb.Metadata;
 
-namespace RethinkWeb.Sample.Donor.Entities;
+namespace RethinkWeb.Sample.Tasks.Entities;
 
-[Entity(slug: "volunteers", displayName: "Volunteers")]
-public class Volunteer
+[Entity(slug: "projects", displayName: "Projects")]
+public class Project
 {
     [Key]
     public Guid Id { get; set; }
 
-    [TextBox("First Name", GridVisible = true, GridOrder = 1, Required = true)]
-    public string FirstName { get; set; } = "";
+    [TextBox("Name", GridVisible = true, GridOrder = 1, Required = true,
+        Sample = "Q3 marketing site")]
+    public string Name { get; set; } = "";
 
-    [TextBox("Last Name", GridVisible = true, GridOrder = 2, Required = true)]
-    public string LastName { get; set; } = "";
+    [TextBox("Description", Multiline = true)]
+    public string? Description { get; set; }
 
-    [TextBox("Email", GridVisible = true, GridOrder = 3, Sample = "vol@example.com")]
-    public string? Email { get; set; }
+    [TextBox("Owner", GridVisible = true, GridOrder = 2, Sample = "alice")]
+    public string? Owner { get; set; }
 
-    [DateBox("Joined", GridVisible = true, GridOrder = 4)]
-    public DateTime? JoinedDate { get; set; }
+    [DateBox("Created", Disabled = true, GridVisible = true, GridOrder = 3)]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [CheckBox("Active")]
     public bool Active { get; set; } = true;
-
-    [TextBox("Notes", Multiline = true)]
-    public string? Notes { get; set; }
 }
 ```
 
@@ -42,27 +40,25 @@ The `[Key]` attribute is for EF Core; `[Entity]` is for RethinkWeb. Both require
 
 ## 2. Add the DbSet
 
-Edit `src/RethinkWeb.Sample.Donor/SampleContext.cs`:
+Edit `src/RethinkWeb.Sample.Tasks/TasksDb.cs`:
 
 ```csharp
-public sealed class SampleContext(DbContextOptions<SampleContext> options) : DbContext(options)
+public sealed class TasksDb(DbContextOptions<TasksDb> options) : DbContext(options)
 {
-    public DbSet<Donor> Donors => Set<Donor>();
-    public DbSet<Donation> Donations => Set<Donation>();
-    public DbSet<Volunteer> Volunteers => Set<Volunteer>();   // <-- add this
+    public DbSet<Todo> Todos => Set<Todo>();
+    public DbSet<Project> Projects => Set<Project>();   // <-- add this
 }
 ```
 
 ## 3. Register with the framework
 
-Edit `src/RethinkWeb.Sample.Donor/Program.cs`:
+Edit `src/RethinkWeb.Sample.Tasks/Program.cs`:
 
 ```csharp
 builder.Services
     .AddRethinkWeb()
-    .AddEntity<Donor>().UseEfCoreFor<Donor, SampleContext>()
-    .AddEntity<Donation>().UseEfCoreFor<Donation, SampleContext>()
-    .AddEntity<Volunteer>().UseEfCoreFor<Volunteer, SampleContext>()    // <-- add this
+    .AddEntity<Todo>().UseEfCoreFor<Todo, TasksDb>()
+    .AddEntity<Project>().UseEfCoreFor<Project, TasksDb>()    // <-- add this
     // ... rest unchanged
     .UseRazorRenderer();
 ```
@@ -74,37 +70,37 @@ Order matters: `.AddEntity<T>()` registers the default in-memory store first; `.
 Because we're using `EnsureCreated()` rather than migrations:
 
 ```bash
-rm src/RethinkWeb.Sample.Donor/donor-sample.db*
+rm src/RethinkWeb.Sample.Tasks/tasks.db*
 ```
 
-In production, add an EF migration with `dotnet ef migrations add AddVolunteers`.
+In production, add an EF migration with `dotnet ef migrations add AddProjects`.
 
 ## 5. Run
 
 ```bash
-dotnet run --project src/RethinkWeb.Sample.Donor
+dotnet run --project src/RethinkWeb.Sample.Tasks
 ```
 
 You now have:
 
-- `GET /` — index page lists Volunteers alongside Donors and Donations
-- `GET /volunteers` — grid view (First Name, Last Name, Email, Joined, with Active filtered out because `GridVisible = false`)
-- `GET /volunteers/{id}` — edit form with all six fields
-- `POST /volunteers/{id}` — form binding + save + `EntitySaved<Volunteer>` event publish
-- `GET /_framework/manifest` — Volunteer entity now appears with full field metadata
-- MCP server at `/mcp` — no Volunteer-specific tools yet (see [adding an action](./adding-an-action.md)); manifest entries flow into MCP automatically once you have actions
+- `GET /` — index page lists Projects alongside Tasks
+- `GET /projects` — grid view (Name, Owner, Created — `Description` and `Active` filtered out because `GridVisible = false`)
+- `GET /projects/{id}` — edit form with all six fields
+- `POST /projects/{id}` — form binding + save + `EntitySaved<Project>` event publish
+- `GET /_framework/manifest` — Project entity now appears with full field metadata
+- MCP server at `/mcp` — no Project-specific tools yet (see [adding an action](./adding-an-action.md)); manifest entries flow into MCP automatically once you have actions
 
 ## 6. Test it (optional)
 
-For a generated entity, the smoke test that gets you the most coverage for the least effort is a `WebApplicationFactory` integration test. Pattern lives in `tests/RethinkWeb.Sample.Donor.Tests/EndToEndTests.cs`:
+For a generated entity, the smoke test that gets you the most coverage for the least effort is a `WebApplicationFactory` integration test. Pattern lives in `tests/RethinkWeb.Sample.Tasks.Tests/EndToEndTests.cs`:
 
 ```csharp
 [Fact]
-public async Task Volunteers_endpoint_renders_grid()
+public async Task Projects_endpoint_renders_grid()
 {
     var client = _factory.CreateClient();
-    var html = await client.GetStringAsync("/volunteers");
-    html.Should().Contain("Volunteers");
+    var html = await client.GetStringAsync("/projects");
+    html.Should().Contain("Projects");
 }
 ```
 
@@ -119,20 +115,20 @@ For unit-testing field metadata or computed-field event subscribers, see [`testi
 - A repository or service class
 - A `tools/list` registration for MCP
 - A docs page
-- An audit subscriber (the framework auto-publishes `EntitySaved<Volunteer>` for free)
+- An audit subscriber (the framework auto-publishes `EntitySaved<Project>` for free)
 
 That's the framework's pitch, demonstrated.
 
 ## When the framework isn't enough
 
-If you need a custom screen the metadata renderer can't draw — a kanban board, a chart, a multi-step wizard — write a Razor partial directly in `Program.cs` or a separate component file:
+If you need a custom screen the metadata renderer can't draw — a kanban board, a chart, a multi-step wizard, **a chat UI** — write a Razor partial directly in `Program.cs` or hand-roll HTML and serve it from a custom endpoint. The Chat sample (`src/RethinkWeb.Sample.Chat`) is the canonical demonstration: the framework still owns the data path (entities, actions, events, MCP, manifest) but the chat layout is hand-rolled HTML in `ChatPages.cs`.
 
 ```csharp
-app.MapGet("/volunteers/leaderboard", async (SampleContext db, IEntityRenderer renderer) =>
+app.MapGet("/projects/dashboard", async (TasksDb db, IEntityRenderer renderer) =>
 {
     // Your custom query + rendering
-    var html = "<h1>Top Volunteers</h1>...";
-    var page = await renderer.RenderLayoutAsync("Leaderboard", html);
+    var html = "<h1>Project Dashboard</h1>...";
+    var page = await renderer.RenderLayoutAsync("Dashboard", html);
     return Results.Content(page, "text/html");
 });
 ```

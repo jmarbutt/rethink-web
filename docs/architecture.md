@@ -51,14 +51,16 @@ If a primitive is registered as `Singleton` but consumes `Scoped` services (e.g.
 | `RethinkWeb.Http.MinimalApi` | `Core`, ASP.NET Core | Endpoint mapper, form binder, HTMX detection. |
 | `RethinkWeb.Mcp` | `Core`, `ModelContextProtocol.AspNetCore` | Hosts a standards-compliant MCP server (Streamable HTTP transport) at `/mcp`. Builds the `McpServerTool` collection dynamically from `IActionRegistry`. |
 | `RethinkWeb.Store.EfCore` | `Core`, `Microsoft.EntityFrameworkCore` | Swap-in `EfCoreEntityStore<TEntity, TContext>`. |
-| `RethinkWeb.Sample.Donor` | All of the above + `Microsoft.EntityFrameworkCore.Sqlite` | Reference app. |
+| `RethinkWeb.Sample.Notes` | All of the above + `Microsoft.EntityFrameworkCore.Sqlite` | Smallest possible sample — one entity, no actions, no events. |
+| `RethinkWeb.Sample.Tasks` | Same | Canonical sample — adds an action + `EntitySaved<T>` subscriber. The test suite targets this one. |
+| `RethinkWeb.Sample.Chat` | Same | Real-time sample — two entities, action on a parent, HTMX-SSE for live updates. Demonstrates the escape hatch for hand-rolled HTML. |
 
 A user can build a working app with just `Core + Render.Razor + Http.MinimalApi + Store.EfCore`. No Wolverine, no Marten, no MCP. Pay-as-you-go.
 
 ## Dependency direction
 
 ```
-                        Sample.Donor (web app)
+                        Sample.Tasks (web app)
                        /     |       \      \
                       ↓      ↓        ↓      ↓
               Render.Razor  Http   Mcp   Store.EfCore

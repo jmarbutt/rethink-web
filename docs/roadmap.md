@@ -24,7 +24,7 @@ The bet under test: **HTMX + server-rendered metadata + unified actions can prod
 - [x] **MCP server (Streamable HTTP transport)** at `/mcp` via the official `ModelContextProtocol.AspNetCore` SDK — Claude-Desktop / MCP-Inspector / Cursor compatible
 - [x] Dynamic MCP tool registration: one `McpServerTool` per registered action, JSON Schema auto-generated from `TInput`
 - [x] `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests
-- [x] `RethinkWeb.Sample.Donor` reference app
+- [x] Three sample apps in a complexity ladder: `Sample.Notes` (CRUD floor), `Sample.Tasks` (action + EntitySaved subscriber, canonical demo), `Sample.Chat` (two entities + HTMX-SSE real-time)
 - [x] **`PublishingEntityStore<T>` decorator** — `EntitySaved<T>` fires from EVERY save path (HTMX form, action via dispatcher, MCP tool, future workflow), with AsyncLocal recursion guard for subscriber re-saves
 - [x] **Explicit `POST /{slug}/{id}/actions/{name}`** endpoint — accepts form-encoded or JSON input, dispatches via `IActionDispatcher`, returns HTMX-aware response
 - [x] **Server-enforced `Required`** in `FormBinder` (collects errors, returns HTTP 422)
@@ -62,7 +62,7 @@ The killer Phase 2 feature is the **Framework Inspector**. It's the one that del
 - [ ] **LLM doc-helper adapter** — `RethinkWeb.Llm.Anthropic` (and OpenAI variant) — answers user questions using manifest + lifecycle as context, with mandatory "show me what the LLM saw" transparency
 - [ ] **MCP OAuth + auth wiring** — the SDK supports OAuth/bearer; framework needs to bind it to `IAuthContext` so MCP tool calls respect the same permission model as web requests
 - [ ] **MCP error-handling request filter** — replace the "surface inner exception in tool result text" prototype hack with a proper filter that logs internally and returns generic errors to clients
-- [ ] **HTMX SSE adapter** — fakes real-time updates for "another user just changed this donor" without going stateful
+- [ ] **HTMX SSE adapter package** — generalize the per-channel SSE pattern proven in `Sample.Chat` (`ChatStreamHub` + `MessageBroadcaster`) into `RethinkWeb.RealTime.Sse`. Subscribe to `EntitySaved<T>` events, push rendered fragments to subscribed clients filtered by entity id or query.
 - [ ] **`/_docs/{entity}` Markdown renderer** — generates human-readable docs from the manifest, scoped to user permissions
 - [ ] **Mobile JSON-API renderer** — alternate `IEntityRenderer` that emits JSON instead of HTML, for mobile clients that don't want a webview
 

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>RethinkWeb.Sample.Chat</RootNamespace>
+    <UserSecretsId>rethinkweb-sample-chat</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RethinkWeb.Core\RethinkWeb.Core.csproj" />
+    <ProjectReference Include="..\RethinkWeb.Render.Razor\RethinkWeb.Render.Razor.csproj" />
+    <ProjectReference Include="..\RethinkWeb.Http.MinimalApi\RethinkWeb.Http.MinimalApi.csproj" />
+    <ProjectReference Include="..\RethinkWeb.Mcp\RethinkWeb.Mcp.csproj" />
+    <ProjectReference Include="..\RethinkWeb.Store.EfCore\RethinkWeb.Store.EfCore.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -68,28 +68,33 @@ Currently the fakes live inside individual test projects. The plan is to extract
 - `WorkflowRunner.AdvanceTime(TimeSpan)` — fake-clock control for time-dependent workflows.
 - `ActionInvoker<TAction>.Invoke(input)` — bypass HTTP, hit the handler directly with full DI.
 
-Until that ships, copy the patterns from `tests/RethinkWeb.Core.Tests/Fakes.cs` and `tests/RethinkWeb.Sample.Donor.Tests/EndToEndTests.cs`.
+Until that ships, copy the patterns from `tests/RethinkWeb.Core.Tests/Fakes.cs` and `tests/RethinkWeb.Sample.Tasks.Tests/EndToEndTests.cs`.
 
 ## Existing test layout
 
 ```
 tests/
   RethinkWeb.Core.Tests/
-    Fakes.cs                   FakeClock, FakeIdGenerator
-    EventBusTests.cs           InProcEventBus dispatch + context
-    RegistryTests.cs           EntityRegistry + ActionRegistry behavior
-    ManifestTests.cs           Manifest filtering by permissions
+    Fakes.cs                          FakeClock, FakeIdGenerator
+    EventBusTests.cs                  InProcEventBus dispatch + context
+    RegistryTests.cs                  EntityRegistry + ActionRegistry behavior
+    ManifestTests.cs                  Manifest filtering by permissions
+    ManifestSchemaTests.cs            NullabilityInfoContext required-ness
+    PublishingEntityStoreTests.cs     Decorator publishes EntitySaved on every save
+    AuthBoundariesTests.cs            Permission filtering on entities
 
   RethinkWeb.Render.Razor.Tests/
-    RendererSnapshotTests.cs   GridView + EditView output frozen as Verify snapshots
-    Snapshots/                 .verified.txt baselines (commit these; .received.txt is gitignored)
+    RendererSnapshotTests.cs          GridView + EditView output frozen as Verify snapshots
+    Snapshots/                        .verified.txt baselines (commit these; .received.txt is gitignored)
 
-  RethinkWeb.Sample.Donor.Tests/
-    EndToEndTests.cs           Manifest endpoint + HTMX form post + MCP tools/call
-                               (all hitting the live WebApplicationFactory<Program>)
+  RethinkWeb.Sample.Tasks.Tests/
+    RecordingFactory.cs               Custom WebApplicationFactory with EntitySaved recorder
+    EndToEndTests.cs                  Manifest + HTMX form post + MCP via real McpClient
+    HttpFixesTests.cs                 Action endpoint + EntitySaved publish + Required validation
+                                      (all hitting the live WebApplicationFactory<Program>)
 ```
 
-12 tests today. Run with:
+20 tests today. Run with:
 
 ```bash
 dotnet test
@@ -107,7 +112,7 @@ After intentional changes: same workflow. The `.received.*` files are gitignored
 
 ## What NOT to test
 
-- The framework's reflection itself. Trust .NET. Don't write a test that asserts `typeof(Donor).GetCustomAttribute<EntityAttribute>()` returns non-null.
+- The framework's reflection itself. Trust .NET. Don't write a test that asserts `typeof(Todo).GetCustomAttribute<EntityAttribute>()` returns non-null.
 - The Razor rendering pipeline. Verify-snapshot the *output*, not the components themselves.
 - Microsoft's DI container. `TryAddSingleton` does what it says.
 - HTMX. It's a script tag; if you're testing HTMX, use a browser, not xUnit.

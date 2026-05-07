@@ -7,25 +7,28 @@ The mental model. Five primitives, one source of truth.
 A C# class with `[Entity(slug, displayName)]`. Properties carry field attributes that describe how to render and validate them. The `Id` property is required and is the primary key.
 
 ```csharp
-[Entity(slug: "donors", displayName: "Donors")]
-public class Donor
+[Entity(slug: "tasks", displayName: "Tasks")]
+public class Todo
 {
     public Guid Id { get; set; }
 
-    [TextBox("First Name", GridVisible = true, GridOrder = 1, Required = true)]
-    public string FirstName { get; set; } = "";
+    [TextBox("Title", GridVisible = true, GridOrder = 1, Required = true)]
+    public string Title { get; set; } = "";
 
-    [PhoneBox("Phone Number", Sample = "(555) 123-4567")]
-    public string? Phone { get; set; }
+    [TextBox("Notes", Multiline = true)]
+    public string? Notes { get; set; }
 
-    [CurrencyBox("Year-To-Date Total", Disabled = true, GridVisible = true, GridOrder = 5)]
-    public decimal YearToDateTotal { get; set; }
+    [CheckBox("Completed", GridVisible = true, GridOrder = 2)]
+    public bool Completed { get; set; }
+
+    [DateBox("Completed At", Disabled = true)]
+    public DateTime? CompletedAt { get; set; }
 }
 ```
 
-The `slug` is the URL segment (`/donors`, `/donors/{id}`). The `displayName` is what the renderer puts in the page title and grid heading.
+The `slug` is the URL segment (`/tasks`, `/tasks/{id}`). The `displayName` is what the renderer puts in the page title and grid heading.
 
-Register with `.AddEntity<Donor>()` in `Program.cs`. Reflection at startup builds an `EntityMetadata` cache; runtime reads from the cache.
+Register with `.AddEntity<Todo>()` in `Program.cs`. Reflection at startup builds an `EntityMetadata` cache; runtime reads from the cache.
 
 ## 2. Field attributes
 
@@ -58,32 +61,31 @@ public string? Sample       { get; init; }   // placeholder used in docs/manifes
 A class implementing `IAction<TEntity, TInput, TOutput>` with `[Action(name, displayName)]`. Receives the loaded entity, a typed input DTO, and an `IActionContext` with auth/clock/event-bus.
 
 ```csharp
-public sealed record AddressInput(string Address1, string? Address2, string City, string State, string PostalCode);
-public sealed record AddressResult(Guid DonorId, string FullAddress);
+public sealed record MarkCompleteInput;
+public sealed record MarkCompleteResult(Guid TodoId, bool AlreadyCompleted);
 
-[Action("update-address", "Update Address",
-    Description = "Update the postal address on a donor record.",
-    Icon = "map-pin")]
-public sealed class UpdateAddressAction(IEntityStore<Donor> store)
-    : IAction<Donor, AddressInput, AddressResult>
+[Action("mark-complete", "Mark Complete",
+    Description = "Mark a task as completed. Idempotent — re-running on a completed task is a no-op.",
+    Icon = "check")]
+public sealed class MarkCompleteAction(IEntityStore<Todo> store)
+    : IAction<Todo, MarkCompleteInput, MarkCompleteResult>
 {
-    public async Task<AddressResult> ExecuteAsync(
-        Donor entity, AddressInput input, IActionContext context, CancellationToken ct)
+    public async Task<MarkCompleteResult> ExecuteAsync(
+        Todo entity, MarkCompleteInput input, IActionContext context, CancellationToken ct)
     {
-        entity.Address1 = input.Address1;
-        entity.City = input.City;
-        // ...
+        if (entity.Completed) return new MarkCompleteResult(entity.Id, AlreadyCompleted: true);
+        entity.Completed = true;
         await store.SaveAsync(entity, ct);
-        return new AddressResult(entity.Id, $"{input.Address1}, {input.City}");
+        return new MarkCompleteResult(entity.Id, AlreadyCompleted: false);
     }
 }
 ```
 
-Register with `.AddAction<UpdateAddressAction>()`. From there it's accessible as:
+Register with `.AddAction<MarkCompleteAction>()`. From there it's accessible as:
 
-- HTTP: `POST /donors/{id}/actions/update-address` — explicit action endpoint dispatches via `IActionDispatcher`. Form-encoded body or JSON body both work; HTMX-aware response.
-- MCP: tool name `donors.update-address` exposed via the official `ModelContextProtocol.AspNetCore` SDK at `/mcp` (Streamable HTTP transport). `inputSchema` is auto-generated from the `AddressInput` record. Connect via Claude Desktop, MCP Inspector, Cursor, etc. — see [`mcp-clients.md`](./mcp-clients.md).
-- Manifest: listed under the `donors` entity's `actions` array
+- HTTP: `POST /tasks/{id}/actions/mark-complete` — explicit action endpoint dispatches via `IActionDispatcher`. Form-encoded body or JSON body both work; HTMX-aware response.
+- MCP: tool name `tasks.mark-complete` exposed via the official `ModelContextProtocol.AspNetCore` SDK at `/mcp` (Streamable HTTP transport). `inputSchema` is auto-generated from the `MarkCompleteInput` record. Connect via Claude Desktop, MCP Inspector, Cursor, etc. — see [`mcp-clients.md`](./mcp-clients.md).
+- Manifest: listed under the `tasks` entity's `actions` array
 
 ## 4. Event
 
@@ -94,20 +96,23 @@ Two flavors:
 The framework publishes this event after every entity save (form post, action, future workflow step). Subscribe to react to changes regardless of which write path produced them:
 
 ```csharp
-public sealed class RecomputeDeductibleSubscriber(IEntityStore<Donation> store)
-    : IEventSubscriber<EntitySaved<Donation>>
+public sealed class StampCompletedAtSubscriber(
+    IEntityStore<Todo> store, IClock clock)
+    : IEventSubscriber<EntitySaved<Todo>>
 {
-    public async Task HandleAsync(EntitySaved<Donation> evt, IEventContext context, CancellationToken ct)
+    public async Task HandleAsync(EntitySaved<Todo> evt, IEventContext context, CancellationToken ct)
     {
-        var d = evt.Entity;
-        if (d.AmountDeductible == d.Amount) return; // idempotent
-        d.AmountDeductible = d.Amount;
-        await store.SaveAsync(d, ct);
+        var todo = evt.Entity;
+        if (todo.Completed && todo.CompletedAt is null)
+        {
+            todo.CompletedAt = clock.UtcNow.UtcDateTime;
+            await store.SaveAsync(todo, ct);
+        }
     }
 }
 ```
 
-Register with `.AddEventSubscriber<EntitySaved<Donation>, RecomputeDeductibleSubscriber>()`.
+Register with `.AddEventSubscriber<EntitySaved<Todo>, StampCompletedAtSubscriber>()`. The `PublishingEntityStore` decorator's recursion guard prevents the subscriber's re-save from re-publishing — no infinite loop.
 
 ### Custom events (publish from actions)
 
@@ -130,25 +135,22 @@ A JSON document at `/_framework/manifest`:
   "generatedAt": "2026-05-07T02:53:08+00:00",
   "entities": [
     {
-      "slug": "donors",
-      "displayName": "Donors",
+      "slug": "tasks",
+      "displayName": "Tasks",
       "fields": [
-        { "name": "FirstName", "label": "First Name", "kind": "Text", "required": true, "sample": "John" },
+        { "name": "Title", "label": "Title", "kind": "Text", "required": true, "sample": "Write the docs" },
         ...
       ],
       "actions": [
         {
-          "name": "update-address",
-          "displayName": "Update Address",
-          "description": "Update the postal address on a donor record.",
+          "name": "mark-complete",
+          "displayName": "Mark Complete",
+          "description": "Mark a task as completed. Idempotent — re-running on a completed task is a no-op.",
           "exposeToMcp": true,
           "inputSchema": {
             "type": "object",
-            "properties": {
-              "address1": { "type": "string" },
-              ...
-            },
-            "required": ["address1", "city", ...]
+            "properties": {},
+            "required": []
           }
         }
       ]

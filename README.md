@@ -14,24 +14,27 @@ A single attribute-driven C# entity becomes:
 - A **manifest** at `/_framework/manifest` describing every entity, field, and action — for humans, docs, and LLMs
 
 ```csharp
-[Entity(slug: "donors", displayName: "Donors")]
-public class Donor
+[Entity(slug: "tasks", displayName: "Tasks")]
+public class Todo
 {
     public Guid Id { get; set; }
 
-    [TextBox("First Name", GridVisible = true, GridOrder = 1, Required = true)]
-    public string FirstName { get; set; } = "";
+    [TextBox("Title", GridVisible = true, GridOrder = 1, Required = true)]
+    public string Title { get; set; } = "";
 
-    [CurrencyBox("Year-To-Date Total", Disabled = true, GridVisible = true, GridOrder = 5)]
-    public decimal YearToDateTotal { get; set; }
+    [CheckBox("Completed", GridVisible = true, GridOrder = 2)]
+    public bool Completed { get; set; }
+
+    [DateBox("Completed At", Disabled = true)]
+    public DateTime? CompletedAt { get; set; }
 }
 
-[Action("update-address", "Update Address", Description = "Update the postal address.")]
-public sealed class UpdateAddressAction(IEntityStore<Donor> store)
-    : IAction<Donor, AddressInput, AddressResult> { /* ... */ }
+[Action("mark-complete", "Mark Complete", Description = "Mark a task as completed.")]
+public sealed class MarkCompleteAction(IEntityStore<Todo> store)
+    : IAction<Todo, MarkCompleteInput, MarkCompleteResult> { /* ... */ }
 ```
 
-That's all the app code needed for a working donor list, an editable form with HTMX swaps, an MCP tool named `donors.update-address`, and a JSON manifest entry.
+That's all the app code needed for a working task list, an editable form with HTMX swaps, an MCP tool named `tasks.mark-complete`, a `EntitySaved<Todo>` event subscriber that auto-stamps `CompletedAt`, and a JSON manifest entry.
 
 ## Why
 
@@ -81,25 +84,44 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 
 See [`docs/roadmap.md`](./docs/roadmap.md). Headlines:
 
-- **Workflows + triggers + per-entity lifecycle timeline** — the killer feature for multi-day flows like "ACH donation pending for 3 days"
+- **Workflows + triggers + per-entity lifecycle timeline** — the killer feature for multi-day flows like "ACH payment pending for 3 days"
 - **Framework Inspector page** at `/_framework` — Django-Admin-meets-OpenTelemetry for the framework's own metadata
 - **Wolverine / Marten / Hangfire adapter packages**
 - **Per-field permission rendering** — auth metadata exists but renderer doesn't filter yet
 - **LLM doc helper** with explicit "show me what the LLM saw" transparency
+
+## Sample apps (simple → complex)
+
+Three sample projects in this repo, each adding one concept to the previous:
+
+| Project | What it demonstrates | Lines of app code |
+|---|---|---|
+| [`Sample.Notes`](./src/RethinkWeb.Sample.Notes) | Smallest possible app: one entity, no actions, no events. Pure CRUD via auto-generated routes + manifest + MCP. | ~40 |
+| [`Sample.Tasks`](./src/RethinkWeb.Sample.Tasks) | Adds an action (`MarkComplete`) and an `EntitySaved<Todo>` subscriber that stamps `CompletedAt`. The unification demo — same action invokable as form post, action endpoint, or MCP tool. | ~120 |
+| [`Sample.Chat`](./src/RethinkWeb.Sample.Chat) | Two entities (Channel, Message), an action on Channel that posts a message, and an HTMX-SSE channel that pushes new messages live to subscribed browsers. Demonstrates real-time without WebSockets *and* the escape hatch for hand-rolled HTML when the metadata renderer doesn't fit. | ~200 |
+
+`Sample.Tasks` is the canonical demo and the one the test suite targets. Notes is the "Hello World"; Chat is the maximalist showpiece.
 
 ## Quickstart
 
 ```bash
 git clone https://github.com/jmarbutt/rethink-web.git
 cd rethink-web
-dotnet run --project src/RethinkWeb.Sample.Donor
+dotnet run --project src/RethinkWeb.Sample.Tasks
 ```
 
 Then:
 - Open the URL printed in the console (default `http://localhost:5000`)
-- Click a donor, edit, save — HTMX swaps the form fragment in place
+- Click a task, edit, save — HTMX swaps the form fragment in place
+- Check "Completed" on a task; the `EntitySaved<Todo>` subscriber auto-stamps `CompletedAt`
 - Visit `/_framework/manifest` to see the JSON description of the app
-- Connect an MCP client (Claude Desktop, MCP Inspector, Cursor, etc.) to `http://localhost:5000/mcp` — see [`docs/mcp-clients.md`](./docs/mcp-clients.md) for client-specific config
+- Connect an MCP client (Claude Desktop, MCP Inspector, Cursor, etc.) to `http://localhost:5000/mcp` — see [`docs/mcp-clients.md`](./docs/mcp-clients.md)
+
+For real-time, run the chat sample:
+```bash
+dotnet run --project src/RethinkWeb.Sample.Chat
+# then open http://localhost:5000/chat in two tabs and watch messages stream live
+```
 
 ## Run the tests
 
@@ -107,7 +129,7 @@ Then:
 dotnet test
 ```
 
-12 tests across `RethinkWeb.Core.Tests`, `RethinkWeb.Render.Razor.Tests` (Verify snapshots), and `RethinkWeb.Sample.Donor.Tests` (WebApplicationFactory end-to-end).
+20 tests across `RethinkWeb.Core.Tests`, `RethinkWeb.Render.Razor.Tests` (Verify snapshots), and `RethinkWeb.Sample.Tasks.Tests` (WebApplicationFactory end-to-end + real `McpClient` ↔ `McpServer` over in-memory pipes).
 
 ## Documentation
 

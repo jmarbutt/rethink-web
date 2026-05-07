@@ -1,16 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <RootNamespace>RethinkWeb.Sample.Donor</RootNamespace>
-    <UserSecretsId>rethinkweb-sample-donor</UserSecretsId>
+    <RootNamespace>RethinkWeb.Sample.Notes</RootNamespace>
+    <UserSecretsId>rethinkweb-sample-notes</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>

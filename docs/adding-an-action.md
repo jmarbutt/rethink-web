@@ -1,6 +1,6 @@
 # Adding an action
 
-End-to-end walkthrough adding a `MarkInactive` action to the `Volunteer` entity introduced in [`adding-an-entity.md`](./adding-an-entity.md). About five minutes.
+End-to-end walkthrough adding an `Archive` action to the `Project` entity introduced in [`adding-an-entity.md`](./adding-an-entity.md). About five minutes.
 
 The whole point: **one definition surfaces as an HTTP endpoint, an MCP tool, and a manifest entry**. You write the handler once.
 
@@ -9,49 +9,49 @@ The whole point: **one definition surfaces as an HTTP endpoint, an MCP tool, and
 Records keep this terse. Property names become field names in the auto-generated MCP input schema.
 
 ```csharp
-public sealed record MarkInactiveInput(string Reason);
-public sealed record MarkInactiveResult(Guid VolunteerId, DateTime DeactivatedAt);
+public sealed record ArchiveInput(string Reason);
+public sealed record ArchiveResult(Guid ProjectId, DateTime ArchivedAt);
 ```
 
 ## 2. Write the action
 
-Create `src/RethinkWeb.Sample.Donor/Actions/MarkInactiveAction.cs`:
+Create `src/RethinkWeb.Sample.Tasks/Actions/ArchiveProjectAction.cs`:
 
 ```csharp
 using RethinkWeb.Actions;
-using RethinkWeb.Sample.Donor.Entities;
+using RethinkWeb.Sample.Tasks.Entities;
 using RethinkWeb.Storage;
 
-namespace RethinkWeb.Sample.Donor.Actions;
+namespace RethinkWeb.Sample.Tasks.Actions;
 
-public sealed record MarkInactiveInput(string Reason);
-public sealed record MarkInactiveResult(Guid VolunteerId, DateTime DeactivatedAt);
+public sealed record ArchiveInput(string Reason);
+public sealed record ArchiveResult(Guid ProjectId, DateTime ArchivedAt);
 
-[Action(name: "mark-inactive", displayName: "Mark Inactive",
-    Description = "Deactivate a volunteer. Reason is recorded in the notes field.",
-    Icon = "user-x",
-    Permission = "volunteer.deactivate")]
-public sealed class MarkInactiveAction(IEntityStore<Volunteer> store)
-    : IAction<Volunteer, MarkInactiveInput, MarkInactiveResult>
+[Action(name: "archive", displayName: "Archive Project",
+    Description = "Archive a project. Reason is appended to the description.",
+    Icon = "archive",
+    Permission = "project.archive")]
+public sealed class ArchiveProjectAction(IEntityStore<Project> store)
+    : IAction<Project, ArchiveInput, ArchiveResult>
 {
-    public async Task<MarkInactiveResult> ExecuteAsync(
-        Volunteer entity,
-        MarkInactiveInput input,
+    public async Task<ArchiveResult> ExecuteAsync(
+        Project entity,
+        ArchiveInput input,
         IActionContext context,
         CancellationToken ct = default)
     {
         var now = context.Clock.UtcNow;          // never DateTime.UtcNow — see testing.md
         entity.Active = false;
-        entity.Notes = $"{entity.Notes}\nDeactivated {now:yyyy-MM-dd}: {input.Reason}".TrimStart();
+        entity.Description = $"{entity.Description}\nArchived {now:yyyy-MM-dd}: {input.Reason}".TrimStart();
         await store.SaveAsync(entity, ct);
-        return new MarkInactiveResult(entity.Id, now.UtcDateTime);
+        return new ArchiveResult(entity.Id, now.UtcDateTime);
     }
 }
 ```
 
 Key conventions:
 
-- `name` is URL-safe and shows up in MCP as `volunteers.mark-inactive`.
+- `name` is URL-safe and shows up in MCP as `projects.archive`.
 - `Permission` is checked by `ActionDispatcher` before invocation. With the default `AllowAllAuthContext`, every check passes; in production wire up a real `IAuthContext`.
 - Use `context.Clock.UtcNow`, not `DateTime.UtcNow`. (See [`testing.md`](./testing.md).)
 - The entity is loaded for you — your `Execute` receives the live instance.
@@ -64,8 +64,8 @@ In `Program.cs`:
 builder.Services
     .AddRethinkWeb()
     // ... entities ...
-    .AddAction<UpdateAddressAction>()
-    .AddAction<MarkInactiveAction>()       // <-- add this
+    .AddAction<MarkCompleteAction>()
+    .AddAction<ArchiveProjectAction>()       // <-- add this
     .UseRazorRenderer();
 ```
 
@@ -81,12 +81,12 @@ Quickest validation — open **MCP Inspector**:
 npx @modelcontextprotocol/inspector
 ```
 
-Set transport to **Streamable HTTP**, URL `http://localhost:5099/mcp`, click **Connect**. The Tools tab now lists `volunteers.mark-inactive` with its auto-generated input schema:
+Set transport to **Streamable HTTP**, URL `http://localhost:5099/mcp`, click **Connect**. The Tools tab now lists `projects.archive` with its auto-generated input schema:
 
 ```json
 {
-  "name": "volunteers.mark-inactive",
-  "description": "Deactivate a volunteer. Reason is recorded in the notes field.",
+  "name": "projects.archive",
+  "description": "Archive a project. Reason is appended to the description.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -106,8 +106,8 @@ In the Inspector's call form, paste:
 
 ```json
 {
-  "entityId": "<your-volunteer-guid>",
-  "input": { "reason": "Moved out of state" }
+  "entityId": "<your-project-guid>",
+  "input": { "reason": "Project canceled by stakeholder" }
 }
 ```
 
@@ -116,16 +116,16 @@ Click **Run**. See [`mcp-clients.md`](./mcp-clients.md) for Claude Desktop, Curs
 ### As an HTTP endpoint
 
 ```bash
-curl -s -X POST http://localhost:5099/volunteers/11111111-1111-1111-1111-111111111111/actions/mark-inactive \
+curl -s -X POST http://localhost:5099/projects/<id>/actions/archive \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "reason=Moved out of state"
+  -d "Reason=Project canceled by stakeholder"
 ```
 
 (Action-as-HTTP-endpoint dispatch is wired in `EndpointRouteExtensions` — search for `MapEntityEndpoints`.)
 
 ### From the manifest
 
-`GET /_framework/manifest` now includes the action under the `volunteers` entity. Docs pages, LLM context, and the future Inspector UI all read from here.
+`GET /_framework/manifest` now includes the action under the `projects` entity. Docs pages, LLM context, and the future Inspector UI all read from here.
 
 ## 5. Test it
 
@@ -133,22 +133,22 @@ Action handlers are unit-testable in isolation — no HTTP, no DB.
 
 ```csharp
 [Fact]
-public async Task MarkInactive_sets_active_false_and_appends_note()
+public async Task Archive_sets_active_false_and_appends_note()
 {
-    var store = new InMemoryEntityStore<Volunteer>();
-    var volunteer = new Volunteer { Id = Guid.NewGuid(), FirstName = "Ada", Active = true };
-    await store.SaveAsync(volunteer);
+    var store = new InMemoryEntityStore<Project>();
+    var project = new Project { Id = Guid.NewGuid(), Name = "Test", Active = true };
+    await store.SaveAsync(project);
 
-    var clock = new FakeClock(DateTimeOffset.Parse("2026-05-06T10:00:00Z"));
+    var clock = new FakeClock(DateTimeOffset.Parse("2026-05-07T10:00:00Z"));
     var ctx = new TestActionContext { Clock = clock };
 
-    var action = new MarkInactiveAction(store);
-    var result = await action.ExecuteAsync(volunteer, new MarkInactiveInput("Moved"), ctx, default);
+    var action = new ArchiveProjectAction(store);
+    var result = await action.ExecuteAsync(project, new ArchiveInput("Canceled"), ctx, default);
 
-    var saved = await store.GetAsync(volunteer.Id);
+    var saved = await store.GetAsync(project.Id);
     saved!.Active.Should().BeFalse();
-    saved.Notes.Should().Contain("2026-05-06").And.Contain("Moved");
-    result.DeactivatedAt.Should().Be(clock.UtcNow.UtcDateTime);
+    saved.Description.Should().Contain("2026-05-07").And.Contain("Canceled");
+    result.ArchivedAt.Should().Be(clock.UtcNow.UtcDateTime);
 }
 ```
 
@@ -162,7 +162,7 @@ Notice the `FakeClock` — without it, the test would be sensitive to wall-clock
 - A binding from form to typed record
 - A docs entry
 - A permission check (the dispatcher does it from the `[Action(Permission = ...)]` attribute)
-- An audit log entry (subscribers to `EntitySaved<Volunteer>` fire automatically after the action's save)
+- An audit log entry (subscribers to `EntitySaved<Project>` fire automatically after the action's save)
 
 ## Constraints (read these before getting clever)
 
