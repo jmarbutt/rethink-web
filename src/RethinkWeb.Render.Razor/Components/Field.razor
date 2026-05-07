@@ -1,0 +1,70 @@
+@* Switches by FieldKind. One component per kind keeps each renderer small. *@
+
+<label>
+    <span>@Metadata.Attribute.Label@(Metadata.Attribute.Required ? " *" : "")</span>
+    @switch (Metadata.Attribute.Kind)
+    {
+        case FieldKind.Text:
+        case FieldKind.Email:
+        case FieldKind.Phone:
+            <input type="@InputType()"
+                   name="@Metadata.Name"
+                   value="@(Value?.ToString())"
+                   disabled="@Metadata.Attribute.Disabled"
+                   required="@Metadata.Attribute.Required" />
+            break;
+        case FieldKind.Number:
+            <input type="number"
+                   name="@Metadata.Name"
+                   value="@(Value?.ToString())"
+                   disabled="@Metadata.Attribute.Disabled" />
+            break;
+        case FieldKind.Currency:
+            <input type="number"
+                   step="0.01"
+                   name="@Metadata.Name"
+                   value="@(Value?.ToString())"
+                   disabled="@Metadata.Attribute.Disabled" />
+            break;
+        case FieldKind.Date:
+            <input type="date"
+                   name="@Metadata.Name"
+                   value="@FormatDate(Value)"
+                   disabled="@Metadata.Attribute.Disabled" />
+            break;
+        case FieldKind.Checkbox:
+            <input type="checkbox"
+                   name="@Metadata.Name"
+                   value="true"
+                   checked="@(Value is bool b && b)"
+                   disabled="@Metadata.Attribute.Disabled" />
+            break;
+        case FieldKind.Select:
+            <select name="@Metadata.Name" disabled="@Metadata.Attribute.Disabled">
+                <option value="">— select —</option>
+            </select>
+            break;
+        case FieldKind.Hidden:
+            <input type="hidden" name="@Metadata.Name" value="@(Value?.ToString())" />
+            break;
+    }
+</label>
+
+@code {
+    [Parameter, EditorRequired] public FieldMetadata Metadata { get; set; } = default!;
+    [Parameter] public object? Value { get; set; }
+
+    private string InputType() => Metadata.Attribute.Kind switch
+    {
+        FieldKind.Email => "email",
+        FieldKind.Phone => "tel",
+        _ => "text",
+    };
+
+    private string FormatDate(object? v) => v switch
+    {
+        DateTime dt => dt.ToString("yyyy-MM-dd"),
+        DateTimeOffset dto => dto.ToString("yyyy-MM-dd"),
+        _ => string.Empty,
+    };
+}

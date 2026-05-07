@@ -1,0 +1,85 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{648B330C-F288-412B-8A3D-FC175090BF1C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Core", "src\RethinkWeb.Core\RethinkWeb.Core.csproj", "{F0D734C9-8EFF-43CF-9565-8765A1D08B07}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Render.Razor", "src\RethinkWeb.Render.Razor\RethinkWeb.Render.Razor.csproj", "{AD156235-6EDA-4FBE-9CEE-CCA00133EC44}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Http.MinimalApi", "src\RethinkWeb.Http.MinimalApi\RethinkWeb.Http.MinimalApi.csproj", "{C64015EF-1588-45CB-9327-3DB491A334E6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Mcp", "src\RethinkWeb.Mcp\RethinkWeb.Mcp.csproj", "{36A84334-3484-48BF-81AA-003328D64F2A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Store.EfCore", "src\RethinkWeb.Store.EfCore\RethinkWeb.Store.EfCore.csproj", "{4EF426EC-C459-43B9-B749-6F32820AF491}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Sample.Donor", "src\RethinkWeb.Sample.Donor\RethinkWeb.Sample.Donor.csproj", "{08E2C7D5-82E0-4664-BD68-C8C738F48811}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{529FF240-5115-4152-8B26-5C85DCF0BF9F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Core.Tests", "tests\RethinkWeb.Core.Tests\RethinkWeb.Core.Tests.csproj", "{58071854-10E0-4212-9A4C-95540313C27E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Render.Razor.Tests", "tests\RethinkWeb.Render.Razor.Tests\RethinkWeb.Render.Razor.Tests.csproj", "{DADD7F86-17F2-45C5-A5F4-1B207C4539CE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RethinkWeb.Sample.Donor.Tests", "tests\RethinkWeb.Sample.Donor.Tests\RethinkWeb.Sample.Donor.Tests.csproj", "{C025AC73-8863-4935-8530-E1E281114377}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F0D734C9-8EFF-43CF-9565-8765A1D08B07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F0D734C9-8EFF-43CF-9565-8765A1D08B07}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F0D734C9-8EFF-43CF-9565-8765A1D08B07}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F0D734C9-8EFF-43CF-9565-8765A1D08B07}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AD156235-6EDA-4FBE-9CEE-CCA00133EC44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AD156235-6EDA-4FBE-9CEE-CCA00133EC44}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AD156235-6EDA-4FBE-9CEE-CCA00133EC44}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AD156235-6EDA-4FBE-9CEE-CCA00133EC44}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C64015EF-1588-45CB-9327-3DB491A334E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C64015EF-1588-45CB-9327-3DB491A334E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C64015EF-1588-45CB-9327-3DB491A334E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C64015EF-1588-45CB-9327-3DB491A334E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{36A84334-3484-48BF-81AA-003328D64F2A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{36A84334-3484-48BF-81AA-003328D64F2A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{36A84334-3484-48BF-81AA-003328D64F2A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{36A84334-3484-48BF-81AA-003328D64F2A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4EF426EC-C459-43B9-B749-6F32820AF491}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4EF426EC-C459-43B9-B749-6F32820AF491}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4EF426EC-C459-43B9-B749-6F32820AF491}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4EF426EC-C459-43B9-B749-6F32820AF491}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08E2C7D5-82E0-4664-BD68-C8C738F48811}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08E2C7D5-82E0-4664-BD68-C8C738F48811}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08E2C7D5-82E0-4664-BD68-C8C738F48811}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08E2C7D5-82E0-4664-BD68-C8C738F48811}.Release|Any CPU.Build.0 = Release|Any CPU
+		{58071854-10E0-4212-9A4C-95540313C27E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{58071854-10E0-4212-9A4C-95540313C27E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{58071854-10E0-4212-9A4C-95540313C27E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{58071854-10E0-4212-9A4C-95540313C27E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DADD7F86-17F2-45C5-A5F4-1B207C4539CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DADD7F86-17F2-45C5-A5F4-1B207C4539CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DADD7F86-17F2-45C5-A5F4-1B207C4539CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DADD7F86-17F2-45C5-A5F4-1B207C4539CE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C025AC73-8863-4935-8530-E1E281114377}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C025AC73-8863-4935-8530-E1E281114377}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C025AC73-8863-4935-8530-E1E281114377}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C025AC73-8863-4935-8530-E1E281114377}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F0D734C9-8EFF-43CF-9565-8765A1D08B07} = {648B330C-F288-412B-8A3D-FC175090BF1C}
+		{AD156235-6EDA-4FBE-9CEE-CCA00133EC44} = {648B330C-F288-412B-8A3D-FC175090BF1C}
+		{C64015EF-1588-45CB-9327-3DB491A334E6} = {648B330C-F288-412B-8A3D-FC175090BF1C}
+		{36A84334-3484-48BF-81AA-003328D64F2A} = {648B330C-F288-412B-8A3D-FC175090BF1C}
+		{4EF426EC-C459-43B9-B749-6F32820AF491} = {648B330C-F288-412B-8A3D-FC175090BF1C}
+		{08E2C7D5-82E0-4664-BD68-C8C738F48811} = {648B330C-F288-412B-8A3D-FC175090BF1C}
+		{58071854-10E0-4212-9A4C-95540313C27E} = {529FF240-5115-4152-8B26-5C85DCF0BF9F}
+		{DADD7F86-17F2-45C5-A5F4-1B207C4539CE} = {529FF240-5115-4152-8B26-5C85DCF0BF9F}
+		{C025AC73-8863-4935-8530-E1E281114377} = {529FF240-5115-4152-8B26-5C85DCF0BF9F}
+	EndGlobalSection
+EndGlobal

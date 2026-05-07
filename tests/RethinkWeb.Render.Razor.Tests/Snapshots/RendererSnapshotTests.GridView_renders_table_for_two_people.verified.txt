@@ -1,0 +1,4 @@
+﻿<h1>People</h1>
+
+<table><thead><tr><th>First Name</th><th>Last Name</th><th></th></tr></thead>
+    <tbody id="grid-body"><tr id="row-11111111-1111-1111-1111-111111111111"><td>Ada</td><td>Lovelace</td><td class="row-actions"><a href="/people/11111111-1111-1111-1111-111111111111">Edit</a></td></tr><tr id="row-22222222-2222-2222-2222-222222222222"><td>Alan</td><td>Turing</td><td class="row-actions"><a href="/people/22222222-2222-2222-2222-222222222222">Edit</a></td></tr></tbody></table>

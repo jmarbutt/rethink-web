@@ -1,0 +1,4 @@
+﻿<h1>Edit People</h1>
+
+<form id="edit-form-11111111-1111-1111-1111-111111111111" hx-post="/people/11111111-1111-1111-1111-111111111111" hx-target="#edit-form-11111111-1111-1111-1111-111111111111" hx-swap="outerHTML"><label><span>First Name *</span><input type="text" name="FirstName" value="Ada" required /></label><label><span>Last Name</span><input type="text" name="LastName" value="Lovelace" /></label><label><span>Active</span><input type="checkbox" name="Active" value="true" checked /></label><button type="submit">Save</button>
+    <a href="/people" style="margin-left: 1rem;">Cancel</a></form>

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>RethinkWeb.Sample.Donor</RootNamespace>
+    <UserSecretsId>rethinkweb-sample-donor</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RethinkWeb.Core\RethinkWeb.Core.csproj" />
+    <ProjectReference Include="..\RethinkWeb.Render.Razor\RethinkWeb.Render.Razor.csproj" />
+    <ProjectReference Include="..\RethinkWeb.Http.MinimalApi\RethinkWeb.Http.MinimalApi.csproj" />
+    <ProjectReference Include="..\RethinkWeb.Mcp\RethinkWeb.Mcp.csproj" />
+    <ProjectReference Include="..\RethinkWeb.Store.EfCore\RethinkWeb.Store.EfCore.csproj" />
+  </ItemGroup>
+
+</Project>

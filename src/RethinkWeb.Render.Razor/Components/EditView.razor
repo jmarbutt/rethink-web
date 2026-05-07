@@ -1,0 +1,24 @@
+@* Renders one entity as an editable form. Posts back to the same URL via HTMX. *@
+
+@{
+    var id = (Guid)Metadata.IdField.GetValue(Entity)!;
+}
+
+<h1>Edit @Metadata.DisplayName</h1>
+
+<form id="edit-form-@id"
+      hx-post="/@Metadata.Slug/@id"
+      hx-target="#edit-form-@id"
+      hx-swap="outerHTML">
+    @foreach (var field in Metadata.Fields)
+    {
+        <Field Metadata="field" Value="@field.GetValue(Entity)" />
+    }
+    <button type="submit">Save</button>
+    <a href="/@Metadata.Slug" style="margin-left: 1rem;">Cancel</a>
+</form>
+
+@code {
+    [Parameter, EditorRequired] public EntityMetadata Metadata { get; set; } = default!;
+    [Parameter, EditorRequired] public object Entity { get; set; } = default!;
+}

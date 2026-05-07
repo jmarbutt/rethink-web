@@ -1,0 +1,35 @@
+@* Renders an entity collection as a table. One row per entity, columns from GridFields. *@
+
+<h1>@Metadata.DisplayName</h1>
+
+<table>
+    <thead>
+        <tr>
+            @foreach (var field in Metadata.GridFields)
+            {
+                <th>@field.Attribute.Label</th>
+            }
+            <th></th>
+        </tr>
+    </thead>
+    <tbody id="grid-body">
+        @foreach (var entity in Entities)
+        {
+            var id = (Guid)Metadata.IdField.GetValue(entity)!;
+            <tr id="row-@id">
+                @foreach (var field in Metadata.GridFields)
+                {
+                    <td>@(field.GetValue(entity)?.ToString() ?? string.Empty)</td>
+                }
+                <td class="row-actions">
+                    <a href="/@Metadata.Slug/@id">Edit</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter, EditorRequired] public EntityMetadata Metadata { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<object> Entities { get; set; } = default!;
+}
