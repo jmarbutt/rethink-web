@@ -1,10 +1,25 @@
 # Concepts
 
-The mental model. Server-side primitives, one manifest contract.
+The mental model: one developer-authored app layer, one permission-scoped manifest contract, many consumers.
+
+RethinkWeb's core vocabulary is:
+
+```text
+Entity          durable business object and semantic fields
+View Profile    planned presentation contract for context-specific views
+Query           typed read operation
+Mutation        typed state-changing operation
+Action          user-facing or compatibility name for an invokable mutation
+Event           fact emitted after data changes
+Lifecycle Fact  append-only observation of what happened
+Manifest        public contract for renderers, HTTP, MCP, docs, inspectors, and agents
+```
 
 ## 1. Entity
 
-A C# class with `[Entity(slug, displayName)]`. Properties carry field attributes that describe how to render and validate them. The `Id` property is required and is the primary key.
+A C# class with `[Entity(slug, displayName)]`. Properties carry field attributes that describe semantic field kind, labels, validation hints, permissions, and current MVP generated-form behavior. The `Id` property is required and is the primary key.
+
+Entity metadata should not become the home for every layout, widget, personalization, or renderer decision. If every field attribute turns into a tiny UI framework, congratulations, the architecture has fallen down the stairs.
 
 ```csharp
 [Entity(slug: "tasks", displayName: "Tasks")]
@@ -26,15 +41,13 @@ public class Todo
 }
 ```
 
-The `slug` is the URL segment (`/tasks`, `/tasks/{id}`). The `displayName` is what the renderer puts in the page title and grid heading.
+The `slug` is the URL segment (`/tasks`, `/tasks/{id}`). The `displayName` is the human-facing entity name. Register with `.AddEntity<Todo>()` in `Program.cs`. Reflection at startup builds an `EntityMetadata` cache; runtime reads from the cache.
 
-Register with `.AddEntity<Todo>()` in `Program.cs`. Reflection at startup builds an `EntityMetadata` cache; runtime reads from the cache.
+## 2. Field Attributes
 
-## 2. Field attributes
+Each attribute corresponds to a `FieldKind` the current renderer knows how to draw.
 
-Each attribute corresponds to a `FieldKind` the renderer knows how to draw.
-
-| Attribute | FieldKind | Renders as |
+| Attribute | FieldKind | Current default rendering |
 |---|---|---|
 | `[TextBox(label)]` | Text / Email / Multiline | `<input type="text">` (or `email`, or `<textarea>`) |
 | `[NumberBox(label)]` | Number | `<input type="number">` |
@@ -47,16 +60,43 @@ Each attribute corresponds to a `FieldKind` the renderer knows how to draw.
 Common properties on every field attribute:
 
 ```csharp
-public bool Disabled        { get; init; }   // read-only in edit views
-public bool GridVisible     { get; init; }   // appears in grid listings
-public int  GridOrder       { get; init; }   // column sort order
-public bool Required        { get; init; }   // server-enforced on save
+public bool Disabled          { get; init; } // read-only in edit views
+public bool GridVisible       { get; init; } // appears in MVP grid listings
+public int  GridOrder         { get; init; } // MVP grid column sort order
+public bool Required          { get; init; } // server-enforced on save
 public string? ReadPermission { get; init; } // permission to see at all
 public string? EditPermission { get; init; } // permission to edit
-public string? Sample       { get; init; }   // placeholder used in docs/manifest
+public string? Sample         { get; init; } // placeholder used in docs/manifest
 ```
 
-## 3. Query
+The current `GridVisible` and `GridOrder` properties are MVP conveniences. The roadmap moves richer presentation concerns into View Profiles so entity fields remain semantic.
+
+## 3. View Profiles
+
+View Profiles are planned, not implemented yet.
+
+A View Profile describes how an entity or operation should appear in a specific context:
+
+- `grid`: dense list/table for scanning records.
+- `detail`: full read view with ordered sections and fields.
+- `edit`: write form with validation and field grouping.
+- `card`: compact summary for dashboards and related records.
+- `lookup`: small search/selection shape for combo boxes and reference pickers.
+- `operationForm`: input shape for a query, mutation, or action.
+- `custom`: renderer hint for screens that should use hand-written Razor/HTML.
+
+This creates the needed split:
+
+```text
+Entity field:     Title is required text.
+View profile:     In the card view, show Title first and Status second.
+Renderer:         Draw Title as the default text field, or use a richer control.
+Custom screen:    Ignore the generated profile and render a specialized page.
+```
+
+The manifest should eventually expose view profiles so renderers, inspectors, docs, and agents can reason about how an object is meant to appear without reverse-engineering Razor markup.
+
+## 4. Query
 
 A query is a safe, typed read capability. It does not require an entity id and should not mutate state.
 
@@ -89,51 +129,58 @@ Register with `.AddQuery<ListTasksQuery>()`. From there it appears in:
 
 - HTTP: `POST /_framework/queries/tasks.list`
 - MCP: tool name `tasks.list`
-- Manifest: listed in the top-level `queries` array with input schema, output schema, permission, MCP exposure, and cache policy
+- Manifest: top-level `queries` array with input schema, output schema, permission, MCP exposure, and cache policy
 - Future Inspector: runnable from a generated query explorer
 
 The default `IQueryCache` is a no-op. Cache metadata exists now so apps can later opt into per-tenant or per-user caching without changing query handlers.
 
-## 4. Mutation / Action
+## 5. Mutation And Action
 
-A class implementing `IAction<TEntity, TInput, TOutput>` with `[Action(name, displayName)]`. Receives the loaded entity, a typed input DTO, and an `IActionContext` with auth/clock/event-bus.
+`IMutation<TEntity, TInput, TOutput>` is the long-term state-changing operation primitive. A mutation receives the loaded entity, a typed input DTO, and an `IMutationContext` with auth, clock, and event bus.
+
+`IAction<TEntity, TInput, TOutput>` is still supported. Treat it as compatibility and as user-facing language for a button or invoked operation. In the UI, "Mark Complete" is an action. In the app contract, it is an entity-scoped mutation.
 
 ```csharp
-public sealed record MarkCompleteInput;
-public sealed record MarkCompleteResult(Guid TodoId, bool AlreadyCompleted);
+public sealed record RenameTaskInput(string Title);
+public sealed record RenameTaskResult(Guid TodoId, string Title);
 
-[Action("mark-complete", "Mark Complete",
-    Description = "Mark a task as completed. Idempotent — re-running on a completed task is a no-op.",
-    Icon = "check")]
-public sealed class MarkCompleteAction(IEntityStore<Todo> store)
-    : IAction<Todo, MarkCompleteInput, MarkCompleteResult>
+[Mutation(
+    name: "rename",
+    displayName: "Rename Task",
+    Description = "Rename a task.",
+    Icon = "pencil")]
+public sealed class RenameTaskMutation(IEntityStore<Todo> store)
+    : IMutation<Todo, RenameTaskInput, RenameTaskResult>
 {
-    public async Task<MarkCompleteResult> ExecuteAsync(
-        Todo entity, MarkCompleteInput input, IActionContext context, CancellationToken ct)
+    public async Task<RenameTaskResult> ExecuteAsync(
+        Todo entity,
+        RenameTaskInput input,
+        IMutationContext context,
+        CancellationToken ct = default)
     {
-        if (entity.Completed) return new MarkCompleteResult(entity.Id, AlreadyCompleted: true);
-        entity.Completed = true;
+        entity.Title = input.Title;
         await store.SaveAsync(entity, ct);
-        return new MarkCompleteResult(entity.Id, AlreadyCompleted: false);
+        return new RenameTaskResult(entity.Id, entity.Title);
     }
 }
 ```
 
-Register with `.AddAction<MarkCompleteAction>()`. From there it's accessible as:
+Registered mutations are accessible as:
 
-- HTTP: `POST /tasks/{id}/actions/mark-complete` — explicit action endpoint dispatches via `IActionDispatcher`. Form-encoded body or JSON body both work; HTMX-aware response.
-- MCP: tool name `tasks.mark-complete` exposed via the official `ModelContextProtocol.AspNetCore` SDK at `/mcp` (Streamable HTTP transport). `inputSchema` is auto-generated from the `MarkCompleteInput` record. Connect via Claude Desktop, MCP Inspector, Cursor, etc. — see [`mcp-clients.md`](./mcp-clients.md).
-- Manifest: listed under the `tasks` entity's `actions` array
+- HTTP: `POST /tasks/{id}/mutations/rename`
+- MCP: tool name `tasks.rename`
+- Manifest: listed under the entity's `mutations` array
+- Future Inspector: runnable from an operation explorer
 
-`IAction<TEntity, TInput, TOutput>` remains the compatibility name for an entity-scoped mutation. New code can use `IMutation<TEntity, TInput, TOutput>` and `[Mutation]`; it appears under the entity's `mutations` array and can be invoked through `POST /tasks/{id}/mutations/{name}`.
+Existing actions continue to work at `POST /{slug}/{id}/actions/{name}` and as MCP tools named `{slug}.{name}`. Docs and new framework features should prefer Query/Mutation vocabulary unless they are describing user-facing buttons.
 
-## 5. Event
+## 6. Event
 
-Two flavors:
+Two flavors exist today.
 
 ### `EntitySaved<TEntity>` (auto-published)
 
-The framework publishes this event after every entity save (form post, action, future workflow step). Subscribe to react to changes regardless of which write path produced them:
+The framework publishes this event after every entity save (form post, action, mutation, future workflow step). Subscribe to react to changes regardless of which write path produced them:
 
 ```csharp
 public sealed class StampCompletedAtSubscriber(
@@ -152,20 +199,37 @@ public sealed class StampCompletedAtSubscriber(
 }
 ```
 
-Register with `.AddEventSubscriber<EntitySaved<Todo>, StampCompletedAtSubscriber>()`. The `PublishingEntityStore` decorator's recursion guard prevents the subscriber's re-save from re-publishing — no infinite loop.
+Register with `.AddEventSubscriber<EntitySaved<Todo>, StampCompletedAtSubscriber>()`. The `PublishingEntityStore` decorator's recursion guard prevents the subscriber's re-save from re-publishing.
 
-### Custom events (publish from actions)
+### Custom events
 
-Inside an action, use `context.Events.PublishAsync(myEvent)` to fan out to subscribers. The default in-proc bus dispatches synchronously. Adapter packages can swap in durable buses (Wolverine outbox, etc.) without changing the action code.
+Inside an action or mutation, use `context.Events.PublishAsync(myEvent)` to fan out to subscribers. The default in-proc bus dispatches synchronously. Adapter packages can swap in durable buses without changing operation code.
 
 The `IEventContext` passed to subscribers carries:
-- `SourceUserId` — from `IAuthContext.UserId` at publish time
-- `PublishedAt` — from `IClock.UtcNow`
-- `CorrelationId` — from `IIdGenerator.NewId()`
+
+- `SourceUserId` from `IAuthContext.UserId` at publish time
+- `PublishedAt` from `IClock.UtcNow`
+- `CorrelationId` from `IIdGenerator.NewId()`
 
 In tests, swap in `FakeClock` and `FakeIdGenerator` for deterministic correlation IDs and timestamps.
 
-## 6. Manifest
+## 7. Lifecycle Fact
+
+Lifecycle Facts are planned, not implemented yet.
+
+A Lifecycle Fact is an append-only observation recorded by the framework. The first version should record operation facts, not full event sourcing:
+
+- Actor and tenant
+- Correlation id
+- Operation kind and name
+- Entity slug and id when applicable
+- Start/end timestamps
+- Status and error summary
+- Compact input/output or before/after summaries where safe
+
+Lifecycle facts should answer "what happened and why?" for humans, tools, and agents. They should not become the source of truth in the first version. Full snapshots, point-in-time rebuild, and event-sourced storage can come later if the pressure is real.
+
+## 8. Manifest
 
 A JSON document at `/_framework/manifest`:
 
@@ -178,14 +242,13 @@ A JSON document at `/_framework/manifest`:
       "slug": "tasks",
       "displayName": "Tasks",
       "fields": [
-        { "name": "Title", "label": "Title", "kind": "Text", "required": true, "sample": "Write the docs" },
-        ...
+        { "name": "Title", "label": "Title", "kind": "Text", "required": true, "sample": "Write the docs" }
       ],
       "actions": [
         {
           "name": "mark-complete",
           "displayName": "Mark Complete",
-          "description": "Mark a task as completed. Idempotent — re-running on a completed task is a no-op.",
+          "description": "Mark a task as completed. Idempotent.",
           "exposeToMcp": true,
           "inputSchema": {
             "type": "object",
@@ -207,42 +270,52 @@ A JSON document at `/_framework/manifest`:
 }
 ```
 
-The manifest is **the** public contract. Attributes and interfaces are the authoring model; the manifest is what clients consume. Three audiences consume it:
+The manifest is **the** public contract. Attributes and interfaces are the authoring model; runtime metadata is the implementation detail; the manifest is what clients consume.
 
-- **Humans** — via the `/_framework` Inspector page (Phase 2) and `/_docs/{slug}` Markdown views
-- **MCP clients** — `/mcp/tools/list` advertises exposed queries, mutations, and actions; `tools/call` dispatches through the relevant registry
-- **LLMs** — given the manifest scoped to a user's permissions plus recent lifecycle events, an LLM can answer "how does this work?" with full visibility
+Manifest consumers include:
 
-The manifest **filters by user permission**. Entities, fields, queries, mutations, and actions the current `IAuthContext` can't access do not appear in the manifest at all. This is the mechanism that keeps the LLM/docs/MCP surfaces honest about what a given user is allowed to see.
+- **Renderers** for generated HTML and future presentation surfaces
+- **Humans** via the `/_framework` Inspector page and future docs
+- **MCP clients** via exposed tools and schemas
+- **LLMs and agents** via permission-scoped app context plus future lifecycle facts
 
-## How they fit
+The manifest **filters by user permission**. Entities, fields, queries, mutations, and actions the current `IAuthContext` cannot access do not appear in the manifest. This is the mechanism that keeps docs, MCP, and LLM surfaces honest about what a user is allowed to see.
 
-```
-              [Entity / Query / Mutation attributes]
-                              │
-                              ↓
+## How They Fit
+
+```text
+                 Developer-authored app layer
+ Entity + View Profile + Query + Mutation + Action + Event
+                              |
+                              v
                        Runtime metadata
-                    /       │         \
-                   ↓        ↓          ↓
-              Renderer   Manifest   Dispatchers
-                   ↓        ↓          ↓
-                HTML      JSON    Query result / entity update
-                                             ↓
-                                           Save
-                                             ↓
-                                    EntitySaved<T> event
-                                             ↓
-                                      Subscribers
-                                             ↓
-                                (more saves, side effects)
+                              |
+                              v
+                Permission-scoped manifest
+                    /       |       |       \
+                   v        v       v        v
+              Renderer    HTTP     MCP    Inspector/docs/agents
+                   \        |       /
+                    \       v      /
+                      Dispatchers
+                              |
+                              v
+                         Entity save
+                              |
+                              v
+                     Event + lifecycle fact
+                              |
+                              v
+                 Subscribers / future workflows
 ```
 
-Same metadata. Multiple readers. One manifest contract. One event stream after writes.
+Same app contract. Multiple consumers. Explicit operation history.
 
-## Where this is going (Phase 2+)
+## Where This Is Going
 
-- **Triggers** that watch for events and start workflows — `ITrigger<TEvent>`
-- **Workflows** that span days/weeks with durable steps — `IWorkflow<TInput>`, default in-proc engine, `IWorkflowEngine` adapters for Hangfire/Wolverine/Temporal
-- **Lifecycle stream** — every event/action/workflow-step for an entity, in order, queryable via `IEntityLifecycle<TEntity>` and rendered as a timeline view
+- **View Profiles** that keep presentation concerns separate from entity field metadata.
+- **Lifecycle Facts** that record saves, queries, mutations, actions, events, subscribers, and workflow steps.
+- **Triggers** that watch for events and start workflows.
+- **Workflows** that span days or weeks with durable steps.
 
-These primitives are deliberately not in the MVP. See [`roadmap.md`](./roadmap.md).
+These primitives are deliberately not all in the MVP. See [`roadmap.md`](./roadmap.md).

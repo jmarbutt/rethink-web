@@ -1,19 +1,22 @@
 # RethinkWeb
 
-> A .NET 9 framework prototype where server-side metadata becomes a web UI, safe HTTP operations, MCP tools, and a manifest contract.
+> A .NET 9 App Manifest Runtime where a developer-authored business layer becomes web UI, HTTP operations, MCP tools, docs, lifecycle history, and a permission-scoped manifest contract.
 
 **Status: thought-exercise prototype.** Personal R&D, not shipping. Public so it can be cloned, criticized, and learned from. Not accepting issues or PRs.
 
 ## What it is
 
-A single attribute-driven C# app model becomes:
+A single C# app model becomes:
 
-- A **grid view** and **edit form** rendered server-side as HTML
-- **HTTP form-post endpoints** that swap fragments via HTMX (no JSON contract, no SPA build pipeline)
+- **Entities** that describe durable business objects and semantic field metadata
+- **View profiles** (planned) that describe grid, detail, edit, card, lookup, and operation-form presentations without stuffing every UI decision onto entity fields
 - **Queries** for safe, typed reads that can later be cached per tenant or per user
-- **Mutations/actions** for server-driven state changes
+- **Mutations/actions** for typed, permission-scoped state changes
+- A **grid view** and **edit form** rendered server-side as HTML
+- **HTTP form-post endpoints** that swap fragments via HTMX (no SPA build pipeline)
 - **MCP tools** auto-discovered through `tools/list` and invokable via `tools/call`
-- A **manifest** at `/_framework/manifest` describing entities, fields, queries, mutations, and actions for humans, docs, renderers, and LLMs
+- A **manifest** at `/_framework/manifest` describing entities, fields, queries, mutations, actions, and future view/lifecycle metadata for humans, docs, renderers, MCP clients, and LLMs
+- **Lifecycle facts** (planned) that record what happened across saves, operations, events, subscribers, and future workflows
 
 ```csharp
 [Entity(slug: "tasks", displayName: "Tasks")]
@@ -36,27 +39,33 @@ public sealed class MarkCompleteAction(IEntityStore<Todo> store)
     : IAction<Todo, MarkCompleteInput, MarkCompleteResult> { /* ... */ }
 ```
 
-That's all the app code needed for a working task list, an editable form with HTMX swaps, an MCP tool named `tasks.mark-complete`, a `EntitySaved<Todo>` event subscriber that auto-stamps `CompletedAt`, and a JSON manifest entry.
+That's all the app code needed for a working task list, an editable form with HTMX swaps, an MCP tool named `tasks.mark-complete`, an `EntitySaved<Todo>` event subscriber that auto-stamps `CompletedAt`, and a JSON manifest entry.
 
 ## Why
 
-Built by a long-time .NET developer burned out on the React/SPA tax (build pipelines, npm supply chain, type drift between server and client, form pain, timezone hell) but who still has customers expecting React-feeling apps. The bet: **HTMX + server-rendered metadata can produce a UX good enough that you don't miss React** — *and* the same metadata that drives the UI can drive MCP, docs, and LLM context for free.
+Built by a long-time .NET developer burned out on the React/SPA tax (build pipelines, npm supply chain, type drift between server and client, form pain, timezone hell) but who still has customers expecting React-feeling apps.
 
-See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/architecture.md`](./docs/architecture.md) for how the layers fit.
+The bet is broader than "HTMX can replace React for CRUD." RethinkWeb is testing whether a tightly coupled business/app layer can become the stable center of an application while web, MCP, HTTP, docs, inspectors, and AI agents all consume the same manifest contract.
+
+Most app stacks accidentally become distributed systems inside one product: database shape, API DTOs, React forms, docs, audit logs, LLM prompts, and admin screens all drift apart. RethinkWeb intentionally pushes the other direction: one developer-authored app contract, many surfaces.
+
+See [`docs/app-manifest-runtime.md`](./docs/app-manifest-runtime.md) for the thesis, [`docs/concepts.md`](./docs/concepts.md) for the mental model, and [`docs/architecture.md`](./docs/architecture.md) for how the layers fit.
 
 ## Goals
 
-1. **Server-rendered HTML over the wire.** No SPA, no build pipeline, no JSON contract to drift. Types can't go out of sync because there's only one side.
-2. **Metadata once, rendered everywhere.** Entity attributes drive grid columns, edit forms, validation, and the manifest. Change the database, the UI follows.
-3. **Queries and mutations are first-class operations.** Queries are safe typed reads; mutations/actions change state. Both surface through the manifest, HTTP, MCP, and future renderers.
-4. **Pluggable abstractions, opt-in implementations.** `RethinkWeb.Core` has zero external dependencies. Wolverine, Marten, EF Core, MediatR are all opt-in adapter packages — never required.
-5. **Each layer testable in isolation.** Default in-proc implementations make unit tests fast. `IClock`/`IIdGenerator`/`IAuthContext` are injected so tests are deterministic.
-6. **Tightly coupled, deliberately.** Feature folders. No repository pattern wrapping EF. Conventions over configuration so AI agents can write code in this framework confidently.
+1. **App layer first.** Entities, view profiles, queries, mutations, actions, events, lifecycle facts, and permissions are authored as one application contract.
+2. **Manifest as public contract.** Attributes and interfaces are authoring tools; the permission-scoped manifest is what renderers, HTTP, MCP, docs, inspectors, and agents consume.
+3. **Rendering is a consumer, not the center.** Server-rendered HTMX/Razor is the first renderer, but not the only possible surface.
+4. **Queries and mutations are first-class operations.** Queries are safe typed reads; mutations change state; actions are user-facing or compatibility language for invokable mutations.
+5. **Lifecycle facts are core.** The framework should record operation facts before it tries to become event sourcing. Actor, tenant, correlation id, operation, entity, status, timestamp, and summaries are enough for the first cut.
+6. **Pluggable abstractions, opt-in implementations.** `RethinkWeb.Core` has zero external dependencies. Wolverine, Marten, EF Core, MediatR are all opt-in adapter packages, never required.
+7. **Each layer testable in isolation.** Default in-proc implementations make unit tests fast. `IClock`/`IIdGenerator`/`IAuthContext` are injected so tests are deterministic.
+8. **Tightly coupled, deliberately.** Feature folders. No repository pattern wrapping EF. Conventions over configuration so AI agents can extend apps confidently.
 
 ## Non-goals
 
 - **Mass adoption.** This is personal use. No issues, no PRs, no roadmap obligations.
-- **Cross-platform UI generation.** Web is the target. Mobile gets HTML in a webview, not a code-generated native client.
+- **Native mobile code generation.** Web is the first-class renderer. Mobile can use a webview, a future manifest-driven renderer, or an app-specific API.
 - **Real-time collaborative editing.** If you need that, you've outgrown this framework.
 - **Visual workflow designers, drag-and-drop UI builders.** Code-only.
 - **A framework that hides everything.** Manifest is a curl-able JSON document. The Inspector page (Phase 2) shows the registered metadata directly. LLM helpers always show what context they used.
@@ -73,8 +82,8 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 | `IMutation<TEntity, TInput, TOutput>` as the long-term entity mutation primitive | ✅ |
 | `IAction<TEntity, TInput, TOutput>` compatibility path with auto-registered HTTP endpoint | ✅ |
 | MCP server (Streamable HTTP transport) via official `ModelContextProtocol` SDK — Claude Desktop / MCP Inspector compatible | ✅ |
-| MCP tools dynamically registered from `IActionRegistry`; JSON Schema auto-generated from action input record | ✅ |
-| `EntitySaved<TEntity>` event auto-published after every save (HTMX form post, action via dispatcher, MCP tool call — all flow through `PublishingEntityStore<T>`) | ✅ |
+| MCP tools dynamically registered from query, mutation, and action registries; JSON Schema auto-generated from input records | ✅ |
+| `EntitySaved<TEntity>` event auto-published after every save (HTMX form post, action/mutation via dispatcher, MCP tool call — all flow through `PublishingEntityStore<T>`) | ✅ |
 | Server-enforced `Required` validation in `FormBinder` (returns HTTP 422 on missing required fields) | ✅ |
 | HTTP-level `ReadPermission` / `WritePermission` enforcement on entity routes; per-field `EditPermission` skip in `FormBinder` | ✅ |
 | Explicit `POST /{slug}/{id}/actions/{name}` endpoint that dispatches via `IActionDispatcher` | ✅ |
@@ -85,14 +94,17 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 | `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests | ✅ |
 | 32 tests passing across 3 test projects (xUnit + Verify snapshots + WebApplicationFactory + real `McpClient` ↔ `McpServer` over in-memory pipes) | ✅ |
 
+View profiles and lifecycle facts are not implemented yet. They are now treated as core roadmap primitives, not renderer garnish or logging scraps.
+
 ## What's deferred (Phase 2+)
 
 See [`docs/roadmap.md`](./docs/roadmap.md). Headlines:
 
 - **Neutral concept app** — a small operations/work-tracking sample that proves the framework without inheriting an old schema
+- **View profiles** — separate presentation contracts for grid, detail, edit, card, lookup, and operation forms
+- **Lifecycle facts** — append-only operation history for saves, queries, mutations, actions, events, subscribers, and future workflow steps
 - **Framework Inspector page** at `/_framework` — Django-Admin-meets-OpenTelemetry for the framework's own metadata
 - **Operation Explorer** — generated forms for queries, mutations, and actions from the manifest contract
-- **Lifecycle stream** — trace saves, operations, subscribers, and future workflow steps per entity
 - **Workflows + triggers** — the killer feature for multi-step flows like "approval requested, reviewed, and applied"
 - **Wolverine / Marten / Hangfire adapter packages**
 - **Per-field permission rendering** — auth metadata exists but renderer doesn't filter yet
@@ -141,9 +153,10 @@ dotnet test
 
 ## Documentation
 
+- [`docs/app-manifest-runtime.md`](./docs/app-manifest-runtime.md) — thesis: app layer as manifest runtime, many consumers
 - [`docs/architecture.md`](./docs/architecture.md) — layers, package layout, manifest contract, dependency rules
-- [`docs/concepts.md`](./docs/concepts.md) — entities, fields, actions, events, manifest mental model
-- [`docs/query-mutation-plan.md`](./docs/query-mutation-plan.md) — Query/Mutation direction, cache contract, Inspector implications
+- [`docs/concepts.md`](./docs/concepts.md) — entities, view profiles, operations, lifecycle, manifest mental model
+- [`docs/query-mutation-plan.md`](./docs/query-mutation-plan.md) — Query/Mutation/Action direction, cache contract, lifecycle implications
 - [`docs/adding-an-entity.md`](./docs/adding-an-entity.md) — practical walkthrough
 - [`docs/adding-an-action.md`](./docs/adding-an-action.md) — practical walkthrough including MCP exposure
 - [`docs/mcp-clients.md`](./docs/mcp-clients.md) — connect Claude Desktop / MCP Inspector / Cursor / programmatic clients
