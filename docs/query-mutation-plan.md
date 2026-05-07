@@ -20,9 +20,9 @@ Entity grids are not enough for production apps or production MCP. A user should
 
 ```text
 tasks.list
-donors.search
-payments.recent-failures
-interactions.timeline
+projects.search
+jobs.recent-failures
+work-items.timeline
 ```
 
 without exposing SQL, raw EF, or unbounded database access to an LLM or UI renderer.

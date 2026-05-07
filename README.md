@@ -89,8 +89,11 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 
 See [`docs/roadmap.md`](./docs/roadmap.md). Headlines:
 
-- **Workflows + triggers + per-entity lifecycle timeline** — the killer feature for multi-day flows like "ACH payment pending for 3 days"
+- **Neutral concept app** — a small operations/work-tracking sample that proves the framework without inheriting an old schema
 - **Framework Inspector page** at `/_framework` — Django-Admin-meets-OpenTelemetry for the framework's own metadata
+- **Operation Explorer** — generated forms for queries, mutations, and actions from the manifest contract
+- **Lifecycle stream** — trace saves, operations, subscribers, and future workflow steps per entity
+- **Workflows + triggers** — the killer feature for multi-step flows like "approval requested, reviewed, and applied"
 - **Wolverine / Marten / Hangfire adapter packages**
 - **Per-field permission rendering** — auth metadata exists but renderer doesn't filter yet
 - **LLM doc helper** with explicit "show me what the LLM saw" transparency

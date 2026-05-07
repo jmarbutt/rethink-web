@@ -7,7 +7,7 @@ Multi-tenancy is a **first-class but optional** primitive. By default the framew
 Tenancy threads through three places in the framework:
 
 1. **Entity store** — `TenantScopedEntityStore<T>` decorator wraps every store. On save: auto-stamps `TenantId` from `ITenantContext`. On read: filters out other tenants' rows. On cross-tenant write: throws `CrossTenantAccessException`.
-2. **Auth** — entity-level `WritePermission` and per-field `EditPermission` are still consulted; tenancy is *additional* gating, not a replacement. A user inside tenant A who lacks `donor.edit` still can't edit donors.
+2. **Auth** — entity-level `WritePermission` and per-field `EditPermission` are still consulted; tenancy is *additional* gating, not a replacement. A user inside tenant A who lacks `tasks.edit` still can't edit tasks.
 3. **Cache keys / event log / queries** *(when those land in Phase 2/3)* — naturally include `TenantId` so cached data, lifecycle events, and reactive subscriptions don't bleed across tenants.
 
 ## The discriminator-column model
@@ -114,7 +114,7 @@ The right move for production: make your resolver throw or return a sentinel val
 
 ## What doesn't change
 
-- `IAuthContext` and permissions — orthogonal to tenancy. A user in tenant A still needs `donor.edit` to edit a donor.
+- `IAuthContext` and permissions — orthogonal to tenancy. A user in tenant A still needs `tasks.edit` to edit a task.
 - Action dispatcher — actions run inside the request scope, so they automatically pick up the resolved tenant.
 - MCP tool calls — they enter through the same dispatcher; if a request resolves a tenant, MCP tool calls in that request are tenant-scoped.
 
