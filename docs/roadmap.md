@@ -6,7 +6,7 @@ This is personal R&D. There are no dates, no commitments, and the project may st
 
 ## Done (MVP)
 
-The bet under test: **HTMX + server-rendered metadata + unified actions can produce a UX I don't miss React for, while making MCP exposure free.**
+The bet under test: **HTMX + server-rendered metadata + typed queries/mutations can produce a UX I don't miss React for, while making MCP and dev tooling mostly free.**
 
 - [x] Attribute-driven entity metadata (`[Entity]` + 7 field attribute kinds)
 - [x] `EntityRegistry` + `EntityMetadata` reflected at startup
@@ -15,12 +15,15 @@ The bet under test: **HTMX + server-rendered metadata + unified actions can prod
 - [x] Reflective form binder (string → typed property values)
 - [x] `IAction<TEntity, TInput, TOutput>` + `[Action(...)]`
 - [x] `ActionRegistry` + `ActionDispatcher` with permission gate
+- [x] `IQuery<TInput, TOutput>` + `[Query(...)]`
+- [x] `QueryRegistry` + `QueryDispatcher` + no-op `IQueryCache`
+- [x] `IMutation<TEntity, TInput, TOutput>` + `[Mutation(...)]` as the long-term entity mutation primitive
 - [x] `IEventBus` with default `InProcEventBus`
 - [x] `EntitySaved<TEntity>` auto-published after every save
 - [x] `IEventSubscriber<T>` pattern, demonstrated with `RecomputeDeductibleSubscriber`
 - [x] `IEntityStore<T>` with default `InMemoryEntityStore<T>`
 - [x] EF Core adapter (`EfCoreEntityStore<TEntity, TContext>` + `UseEfCoreFor`)
-- [x] `/_framework/manifest` JSON endpoint with permission filtering
+- [x] `/_framework/manifest` JSON endpoint with permission filtering for entities, fields, actions, mutations, and queries
 - [x] **MCP server (Streamable HTTP transport)** at `/mcp` via the official `ModelContextProtocol.AspNetCore` SDK — Claude-Desktop / MCP-Inspector / Cursor compatible
 - [x] Dynamic MCP tool registration: one `McpServerTool` per registered action, JSON Schema auto-generated from `TInput`
 - [x] `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests
@@ -31,7 +34,7 @@ The bet under test: **HTMX + server-rendered metadata + unified actions can prod
 - [x] **Server-enforced `Required`** in `FormBinder` (collects errors, returns HTTP 422)
 - [x] **HTTP-level permission enforcement**: `entity.ReadPermission` on GET, `entity.WritePermission` on POST + actions, per-field `EditPermission` skip in `FormBinder`
 - [x] **JSON Schema required-ness** uses `NullabilityInfoContext` so non-nullable strings show as required (vs the earlier `!IsClass` heuristic that always marked them optional)
-- [x] 20 tests passing across 3 test projects
+- [x] 32 tests passing across 3 test projects
 
 The MVP exists to be poked at. Spend two hours of "donor admin work" in the sample app. If you don't miss React, the bet is paying.
 
@@ -44,11 +47,12 @@ Build these only if the prototype gets daily use. Each is a meaningful chunk of 
 - [ ] **Lifecycle stream** — `IEntityLifecycle<TEntity>` queryable timeline of events/actions/workflow steps per entity
 - [ ] **Lifecycle timeline view** — built-in renderer kind, no per-app code
 - [ ] **Framework Inspector** — `/_framework` admin UI listing entities, actions, events+subscribers, triggers, workflows, recent execution traces, permission map. Django-Admin-meets-OpenTelemetry for the framework's own metadata.
+- [ ] **Query Explorer** inside the Inspector — inspect input/output schema, run queries, view cache policy, and test tenant/user-scoped results.
 - [ ] **Per-field permission filtering in the *renderer*** — server-side write enforcement is in (per-field `EditPermission` is consulted in `FormBinder`); the renderer still draws all fields. Phase 2 makes the renderer consult `IAuthContext` so unauthorized fields don't display, and editable-but-not-by-this-user fields render disabled.
 - [ ] **More renderer kinds** — Card, Detail, Dashboard
 - [ ] **Hangfire workflow adapter** — `RethinkWeb.Workflow.Hangfire` for durable jobs / scheduled steps
 - [ ] **`RethinkWeb.Testing` package** extracted from inline test fakes — `TestHost`, `EventBusAssertions`, `WorkflowRunner`, `ActionInvoker<T>`
-- [ ] **Action-as-HTTP-endpoint** — current code primarily dispatches actions via the form-post path; explicit `POST /<entity>/<id>/actions/<name>` endpoint for non-HTMX clients
+- [x] **Action-as-HTTP-endpoint** — explicit `POST /<entity>/<id>/actions/<name>` endpoint for non-HTMX clients
 
 The killer Phase 2 feature is the **Framework Inspector**. It's the one that delivers on "I want to get back to a single strongly coupled monolith where I can see all the pieces." Don't cut it.
 

@@ -2,6 +2,8 @@ using System.Reflection;
 using RethinkWeb.Actions;
 using RethinkWeb.Auth;
 using RethinkWeb.Metadata;
+using RethinkWeb.Mutations;
+using RethinkWeb.Queries;
 
 namespace RethinkWeb.Manifest;
 
@@ -13,6 +15,8 @@ public interface IManifestBuilder
 public sealed class ManifestBuilder(
     IEntityRegistry entities,
     IActionRegistry actions,
+    IQueryRegistry queries,
+    IMutationRegistry mutations,
     IAuthContext auth,
     IClock clock) : IManifestBuilder
 {
@@ -28,7 +32,8 @@ public sealed class ManifestBuilder(
         return new ManifestDocument(
             FrameworkVersion: FrameworkVersion,
             GeneratedAt: clock.UtcNow,
-            Entities: entityDocs);
+            Entities: entityDocs,
+            Queries: BuildQueries());
     }
 
     private ManifestEntity BuildEntity(EntityMetadata e)
@@ -59,14 +64,47 @@ public sealed class ManifestBuilder(
                 OutputSchema: BuildSchema(a.OutputType)))
             .ToList();
 
+        var entityMutations = mutations.ForEntity(e.ClrType)
+            .Where(m => m.Permission is null || auth.HasPermission(m.Permission))
+            .Select(m => new ManifestMutation(
+                Name: m.Name,
+                DisplayName: m.DisplayName,
+                Description: m.Description,
+                Permission: m.Permission,
+                Icon: m.Icon,
+                ExposeToMcp: m.ExposeToMcp,
+                InputSchema: BuildSchema(m.InputType),
+                OutputSchema: BuildSchema(m.OutputType)))
+            .ToList();
+
         return new ManifestEntity(
             Slug: e.Slug,
             DisplayName: e.DisplayName,
             ReadPermission: e.ReadPermission,
             WritePermission: e.WritePermission,
             Fields: fields,
-            Actions: entityActions);
+            Actions: entityActions,
+            Mutations: entityMutations);
     }
+
+    private IReadOnlyList<ManifestQuery> BuildQueries() =>
+        queries.All
+            .Where(q => q.Permission is null || auth.HasPermission(q.Permission))
+            .Select(q => new ManifestQuery(
+                Name: q.Name,
+                DisplayName: q.DisplayName,
+                Description: q.Description,
+                Permission: q.Permission,
+                ExposeToMcp: q.ExposeToMcp,
+                Cache: new ManifestQueryCache(
+                    Mode: q.CachePolicy.Mode.ToString(),
+                    DurationSeconds: q.CachePolicy.Duration is null
+                        ? null
+                        : (int)q.CachePolicy.Duration.Value.TotalSeconds,
+                    Dependencies: q.CachePolicy.Dependencies),
+                InputSchema: BuildSchema(q.InputType),
+                OutputSchema: BuildSchema(q.OutputType)))
+            .ToList();
 
     /// <summary>
     /// Tiny reflection-based JSON Schema builder. Enough for MCP tool schemas.

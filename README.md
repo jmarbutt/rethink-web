@@ -1,17 +1,19 @@
 # RethinkWeb
 
-> A .NET 9 framework prototype where one entity definition becomes a web UI, an HTTP API, and an MCP tool.
+> A .NET 9 framework prototype where server-side metadata becomes a web UI, safe HTTP operations, MCP tools, and a manifest contract.
 
 **Status: thought-exercise prototype.** Personal R&D, not shipping. Public so it can be cloned, criticized, and learned from. Not accepting issues or PRs.
 
 ## What it is
 
-A single attribute-driven C# entity becomes:
+A single attribute-driven C# app model becomes:
 
 - A **grid view** and **edit form** rendered server-side as HTML
 - **HTTP form-post endpoints** that swap fragments via HTMX (no JSON contract, no SPA build pipeline)
+- **Queries** for safe, typed reads that can later be cached per tenant or per user
+- **Mutations/actions** for server-driven state changes
 - **MCP tools** auto-discovered through `tools/list` and invokable via `tools/call`
-- A **manifest** at `/_framework/manifest` describing every entity, field, and action — for humans, docs, and LLMs
+- A **manifest** at `/_framework/manifest` describing entities, fields, queries, mutations, and actions for humans, docs, renderers, and LLMs
 
 ```csharp
 [Entity(slug: "tasks", displayName: "Tasks")]
@@ -46,7 +48,7 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 
 1. **Server-rendered HTML over the wire.** No SPA, no build pipeline, no JSON contract to drift. Types can't go out of sync because there's only one side.
 2. **Metadata once, rendered everywhere.** Entity attributes drive grid columns, edit forms, validation, and the manifest. Change the database, the UI follows.
-3. **One action definition surfaces in three places.** HTTP endpoint, MCP tool, rendered button. Same code, same auth, same audit.
+3. **Queries and mutations are first-class operations.** Queries are safe typed reads; mutations/actions change state. Both surface through the manifest, HTTP, MCP, and future renderers.
 4. **Pluggable abstractions, opt-in implementations.** `RethinkWeb.Core` has zero external dependencies. Wolverine, Marten, EF Core, MediatR are all opt-in adapter packages — never required.
 5. **Each layer testable in isolation.** Default in-proc implementations make unit tests fast. `IClock`/`IIdGenerator`/`IAuthContext` are injected so tests are deterministic.
 6. **Tightly coupled, deliberately.** Feature folders. No repository pattern wrapping EF. Conventions over configuration so AI agents can write code in this framework confidently.
@@ -67,7 +69,9 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 | Razor Components renderer (Grid + Edit views) | ✅ |
 | HTMX-aware endpoint mapper (returns fragments to `HX-Request`, layouts otherwise) | ✅ |
 | Form binding and persistence via reflective EF Core store | ✅ |
-| `IAction<TEntity, TInput, TOutput>` with auto-registered HTTP endpoint | ✅ |
+| `IQuery<TInput, TOutput>` with manifest + HTTP + MCP exposure | ✅ |
+| `IMutation<TEntity, TInput, TOutput>` as the long-term entity mutation primitive | ✅ |
+| `IAction<TEntity, TInput, TOutput>` compatibility path with auto-registered HTTP endpoint | ✅ |
 | MCP server (Streamable HTTP transport) via official `ModelContextProtocol` SDK — Claude Desktop / MCP Inspector compatible | ✅ |
 | MCP tools dynamically registered from `IActionRegistry`; JSON Schema auto-generated from action input record | ✅ |
 | `EntitySaved<TEntity>` event auto-published after every save (HTMX form post, action via dispatcher, MCP tool call — all flow through `PublishingEntityStore<T>`) | ✅ |
@@ -76,10 +80,10 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 | Explicit `POST /{slug}/{id}/actions/{name}` endpoint that dispatches via `IActionDispatcher` | ✅ |
 | **Multi-tenancy as foundational opt-in** — `UseMultiTenant<TResolver>()` + `ITenantOwned` entities. Discriminator-column model, auto-stamp on save, cross-tenant access throws, defense-in-depth via `TenantScopedEntityStore` decorator + EF Core `HasQueryFilter`. Single-tenant remains the default. | ✅ |
 | `IEventSubscriber<T>` pattern for computed fields + side effects | ✅ |
-| Manifest at `/_framework/manifest` (entities + fields + actions + permissions) | ✅ |
+| Manifest at `/_framework/manifest` (entities + fields + queries + mutations + actions + permissions) | ✅ |
 | In-proc default implementations of every cross-cutting concern | ✅ |
 | `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests | ✅ |
-| 27 tests passing across 3 test projects (xUnit + Verify snapshots + WebApplicationFactory + real `McpClient` ↔ `McpServer` over in-memory pipes) | ✅ |
+| 32 tests passing across 3 test projects (xUnit + Verify snapshots + WebApplicationFactory + real `McpClient` ↔ `McpServer` over in-memory pipes) | ✅ |
 
 ## What's deferred (Phase 2+)
 
@@ -130,12 +134,13 @@ dotnet run --project src/RethinkWeb.Sample.Chat
 dotnet test
 ```
 
-27 tests across `RethinkWeb.Core.Tests`, `RethinkWeb.Render.Razor.Tests` (Verify snapshots), and `RethinkWeb.Sample.Tasks.Tests` (WebApplicationFactory end-to-end + real `McpClient` ↔ `McpServer` over in-memory pipes).
+32 tests across `RethinkWeb.Core.Tests`, `RethinkWeb.Render.Razor.Tests` (Verify snapshots), and `RethinkWeb.Sample.Tasks.Tests` (WebApplicationFactory end-to-end + real `McpClient` ↔ `McpServer` over in-memory pipes).
 
 ## Documentation
 
-- [`docs/architecture.md`](./docs/architecture.md) — five layers, package layout, dependency rules
+- [`docs/architecture.md`](./docs/architecture.md) — layers, package layout, manifest contract, dependency rules
 - [`docs/concepts.md`](./docs/concepts.md) — entities, fields, actions, events, manifest mental model
+- [`docs/query-mutation-plan.md`](./docs/query-mutation-plan.md) — Query/Mutation direction, cache contract, Inspector implications
 - [`docs/adding-an-entity.md`](./docs/adding-an-entity.md) — practical walkthrough
 - [`docs/adding-an-action.md`](./docs/adding-an-action.md) — practical walkthrough including MCP exposure
 - [`docs/mcp-clients.md`](./docs/mcp-clients.md) — connect Claude Desktop / MCP Inspector / Cursor / programmatic clients

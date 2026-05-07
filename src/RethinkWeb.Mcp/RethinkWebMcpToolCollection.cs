@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Server;
 using RethinkWeb.Actions;
 using RethinkWeb.Metadata;
+using RethinkWeb.Mutations;
+using RethinkWeb.Queries;
 
 namespace RethinkWeb.Mcp;
 
@@ -31,8 +33,16 @@ public sealed class RethinkWebMcpToolCollection
     public RethinkWebMcpToolCollection(
         IServiceProvider rootServices,
         IActionRegistry actions,
+        IQueryRegistry queries,
+        IMutationRegistry mutations,
         IEntityRegistry entities)
     {
+        foreach (var query in queries.All)
+        {
+            if (!query.ExposeToMcp) continue;
+            Tools.Add(BuildToolForQuery(rootServices, query));
+        }
+
         foreach (var action in actions.All)
         {
             if (!action.ExposeToMcp) continue;
@@ -41,6 +51,41 @@ public sealed class RethinkWebMcpToolCollection
             var tool = BuildToolForAction(rootServices, entity.Slug, action);
             Tools.Add(tool);
         }
+
+        foreach (var mutation in mutations.All)
+        {
+            if (!mutation.ExposeToMcp) continue;
+
+            var entity = entities.Get(mutation.EntityType);
+            Tools.Add(BuildToolForMutation(rootServices, entity.Slug, mutation));
+        }
+    }
+
+    private static McpServerTool BuildToolForQuery(
+        IServiceProvider rootServices,
+        QueryDescriptor query)
+    {
+        var build = typeof(RethinkWebMcpToolCollection)
+            .GetMethod(nameof(BuildQueryToolGeneric), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(query.InputType);
+
+        var description = query.Description ?? query.DisplayName;
+        return (McpServerTool)build.Invoke(null, [rootServices, query.Name, description])!;
+    }
+
+    private static McpServerTool BuildToolForMutation(
+        IServiceProvider rootServices,
+        string slug,
+        MutationDescriptor mutation)
+    {
+        var build = typeof(RethinkWebMcpToolCollection)
+            .GetMethod(nameof(BuildMutationToolGeneric), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(mutation.InputType);
+
+        var toolName = $"{slug}.{mutation.Name}";
+        var description = mutation.Description ?? mutation.DisplayName;
+
+        return (McpServerTool)build.Invoke(null, [rootServices, slug, mutation.Name, toolName, description])!;
     }
 
     private static McpServerTool BuildToolForAction(
@@ -98,6 +143,82 @@ public sealed class RethinkWebMcpToolCollection
                     // to production, or wire a request filter as documented in the
                     // SDK's filters guide.
                     return $"ERROR in {actionName}: {ex.GetBaseException().Message}";
+                }
+            },
+            new McpServerToolCreateOptions
+            {
+                Name = toolName,
+                Description = description,
+            });
+    }
+
+    private static McpServerTool BuildQueryToolGeneric<TInput>(
+        IServiceProvider rootServices,
+        string queryName,
+        string description)
+        where TInput : class
+    {
+        return McpServerTool.Create(
+            async (
+                TInput input,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    await using var scope = rootServices.CreateAsyncScope();
+                    var dispatcher = scope.ServiceProvider.GetRequiredService<IQueryDispatcher>();
+                    var result = await dispatcher.InvokeAsync(queryName, input, ct);
+
+                    if (!result.Authorized)
+                    {
+                        throw new UnauthorizedAccessException(result.Error ?? "Forbidden");
+                    }
+
+                    return JsonSerializer.Serialize(result.Output);
+                }
+                catch (Exception ex) when (ex is not UnauthorizedAccessException)
+                {
+                    return $"ERROR in {queryName}: {ex.GetBaseException().Message}";
+                }
+            },
+            new McpServerToolCreateOptions
+            {
+                Name = queryName,
+                Description = description,
+            });
+    }
+
+    private static McpServerTool BuildMutationToolGeneric<TInput>(
+        IServiceProvider rootServices,
+        string slug,
+        string mutationName,
+        string toolName,
+        string description)
+        where TInput : class
+    {
+        return McpServerTool.Create(
+            async (
+                string entityId,
+                TInput input,
+                CancellationToken ct) =>
+            {
+                try
+                {
+                    await using var scope = rootServices.CreateAsyncScope();
+                    var dispatcher = scope.ServiceProvider.GetRequiredService<IMutationDispatcher>();
+                    var result = await dispatcher.InvokeAsync(
+                        slug, mutationName, Guid.Parse(entityId), input, ct);
+
+                    if (!result.Authorized)
+                    {
+                        throw new UnauthorizedAccessException(result.Error ?? "Forbidden");
+                    }
+
+                    return JsonSerializer.Serialize(result.Output);
+                }
+                catch (Exception ex) when (ex is not UnauthorizedAccessException)
+                {
+                    return $"ERROR in {mutationName}: {ex.GetBaseException().Message}";
                 }
             },
             new McpServerToolCreateOptions

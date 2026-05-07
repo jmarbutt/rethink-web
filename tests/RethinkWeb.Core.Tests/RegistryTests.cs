@@ -1,5 +1,7 @@
 using RethinkWeb.Actions;
 using RethinkWeb.Metadata;
+using RethinkWeb.Mutations;
+using RethinkWeb.Queries;
 
 namespace RethinkWeb.Core.Tests;
 
@@ -24,6 +26,23 @@ public class RegistryTests
     public sealed class RenameAction : IAction<Widget, RenameInput, RenameResult>
     {
         public Task<RenameResult> ExecuteAsync(Widget entity, RenameInput input, IActionContext context, CancellationToken ct)
+            => Task.FromResult(new RenameResult(entity.Name, input.NewName));
+    }
+
+    public sealed record ListWidgetsInput;
+    public sealed record ListWidgetsResult(IReadOnlyList<string> Names);
+
+    [Query(name: "widgets.list", displayName: "List Widgets")]
+    public sealed class ListWidgetsQuery : IQuery<ListWidgetsInput, ListWidgetsResult>
+    {
+        public Task<ListWidgetsResult> ExecuteAsync(ListWidgetsInput input, IQueryContext context, CancellationToken ct)
+            => Task.FromResult(new ListWidgetsResult([]));
+    }
+
+    [Mutation(name: "rename", displayName: "Rename")]
+    public sealed class RenameMutation : IMutation<Widget, RenameInput, RenameResult>
+    {
+        public Task<RenameResult> ExecuteAsync(Widget entity, RenameInput input, IMutationContext context, CancellationToken ct)
             => Task.FromResult(new RenameResult(entity.Name, input.NewName));
     }
 
@@ -55,6 +74,35 @@ public class RegistryTests
         descriptor.InputType.Should().Be<RenameInput>();
         descriptor.OutputType.Should().Be<RenameResult>();
         descriptor.ImplementationType.Should().Be<RenameAction>();
+    }
+
+    [Fact]
+    public void QueryRegistry_finds_query_by_name()
+    {
+        var reg = new QueryRegistry();
+        reg.Register(typeof(ListWidgetsQuery));
+
+        var descriptor = reg.Find("widgets.list");
+
+        descriptor.Should().NotBeNull();
+        descriptor!.InputType.Should().Be<ListWidgetsInput>();
+        descriptor.OutputType.Should().Be<ListWidgetsResult>();
+        descriptor.ImplementationType.Should().Be<ListWidgetsQuery>();
+    }
+
+    [Fact]
+    public void MutationRegistry_finds_mutation_by_entity_and_name()
+    {
+        var reg = new MutationRegistry();
+        reg.Register(typeof(RenameMutation));
+
+        var descriptor = reg.Find(typeof(Widget), "rename");
+
+        descriptor.Should().NotBeNull();
+        descriptor!.EntityType.Should().Be<Widget>();
+        descriptor.InputType.Should().Be<RenameInput>();
+        descriptor.OutputType.Should().Be<RenameResult>();
+        descriptor.ImplementationType.Should().Be<RenameMutation>();
     }
 
     [Fact]

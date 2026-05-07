@@ -7,6 +7,8 @@ Test the wiring, not the framework. App authors write tests against their own ac
 | Layer | How to test |
 |---|---|
 | **Action** | Inject mocks/fakes for `IEntityStore`, `IEventBus`, `IAuthContext`. Call `ExecuteAsync`. Assert output + entity state + emitted events. |
+| **Query** | Inject fake stores/services. Call `ExecuteAsync`. Assert output, permission assumptions, and cache metadata through manifest tests. |
+| **Mutation** | Same as action. Use the dispatcher or direct handler tests, then assert saved state and emitted events. |
 | **Renderer** | Pure function: metadata + entity → string. Use Verify snapshot tests. Diff on regression. |
 | **Event subscriber** | Construct subscriber, hand it an event + fake `IEventContext`, assert side effects on the injected store. |
 | **Trigger** *(Phase 2)* | Pure predicate. `ShouldFire(evt, ctx) → bool`. Trivial. |
@@ -78,7 +80,7 @@ tests/
     Fakes.cs                          FakeClock, FakeIdGenerator
     EventBusTests.cs                  InProcEventBus dispatch + context
     RegistryTests.cs                  EntityRegistry + ActionRegistry behavior
-    ManifestTests.cs                  Manifest filtering by permissions
+    ManifestTests.cs                  Manifest filtering by permissions + query/mutation exposure
     ManifestSchemaTests.cs            NullabilityInfoContext required-ness
     PublishingEntityStoreTests.cs     Decorator publishes EntitySaved on every save
     AuthBoundariesTests.cs            Permission filtering on entities
@@ -89,12 +91,12 @@ tests/
 
   RethinkWeb.Sample.Tasks.Tests/
     RecordingFactory.cs               Custom WebApplicationFactory with EntitySaved recorder
-    EndToEndTests.cs                  Manifest + HTMX form post + MCP via real McpClient
+    EndToEndTests.cs                  Manifest + HTMX form post + query endpoint + MCP via real McpClient
     HttpFixesTests.cs                 Action endpoint + EntitySaved publish + Required validation
                                       (all hitting the live WebApplicationFactory<Program>)
 ```
 
-20 tests today. Run with:
+32 tests today. Run with:
 
 ```bash
 dotnet test
