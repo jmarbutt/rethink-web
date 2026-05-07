@@ -25,6 +25,7 @@ The bet under test: **HTMX + server-rendered metadata + unified actions can prod
 - [x] Dynamic MCP tool registration: one `McpServerTool` per registered action, JSON Schema auto-generated from `TInput`
 - [x] `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests
 - [x] Three sample apps in a complexity ladder: `Sample.Notes` (CRUD floor), `Sample.Tasks` (action + EntitySaved subscriber, canonical demo), `Sample.Chat` (two entities + HTMX-SSE real-time)
+- [x] **Multi-tenancy as foundational opt-in** — `UseMultiTenant<TResolver>()` + `ITenantOwned` marker + `TenantScopedEntityStore<T>` decorator (auto-stamp + filter + cross-tenant throws) + `ApplyTenantFilters` EF Core helper for SQL-side filtering. Discriminator-column model. Single-tenant remains the default with no ceremony.
 - [x] **`PublishingEntityStore<T>` decorator** — `EntitySaved<T>` fires from EVERY save path (HTMX form, action via dispatcher, MCP tool, future workflow), with AsyncLocal recursion guard for subscriber re-saves
 - [x] **Explicit `POST /{slug}/{id}/actions/{name}`** endpoint — accepts form-encoded or JSON input, dispatches via `IActionDispatcher`, returns HTMX-aware response
 - [x] **Server-enforced `Required`** in `FormBinder` (collects errors, returns HTTP 422)
@@ -72,7 +73,6 @@ Resist these. They're scope-creep that has killed framework projects before.
 
 - Visual workflow designer / no-code builder
 - Drag-and-drop UI builder for non-developers
-- Multi-tenancy as a first-class concept (let consumers add this themselves)
 - Real-time collaborative editing (you've outgrown this framework if you need it)
 - Code generation / scaffolding CLI (a `dotnet new` template is enough if useful at all)
 - Plugin system / dynamic loading

@@ -74,11 +74,12 @@ See [`docs/concepts.md`](./docs/concepts.md) for the mental model and [`docs/arc
 | Server-enforced `Required` validation in `FormBinder` (returns HTTP 422 on missing required fields) | ✅ |
 | HTTP-level `ReadPermission` / `WritePermission` enforcement on entity routes; per-field `EditPermission` skip in `FormBinder` | ✅ |
 | Explicit `POST /{slug}/{id}/actions/{name}` endpoint that dispatches via `IActionDispatcher` | ✅ |
+| **Multi-tenancy as foundational opt-in** — `UseMultiTenant<TResolver>()` + `ITenantOwned` entities. Discriminator-column model, auto-stamp on save, cross-tenant access throws, defense-in-depth via `TenantScopedEntityStore` decorator + EF Core `HasQueryFilter`. Single-tenant remains the default. | ✅ |
 | `IEventSubscriber<T>` pattern for computed fields + side effects | ✅ |
 | Manifest at `/_framework/manifest` (entities + fields + actions + permissions) | ✅ |
 | In-proc default implementations of every cross-cutting concern | ✅ |
 | `IClock` / `IIdGenerator` / `IAuthContext` injected for deterministic tests | ✅ |
-| 20 tests passing across 3 test projects (xUnit + Verify snapshots + WebApplicationFactory + real `McpClient` ↔ `McpServer` over in-memory pipes) | ✅ |
+| 27 tests passing across 3 test projects (xUnit + Verify snapshots + WebApplicationFactory + real `McpClient` ↔ `McpServer` over in-memory pipes) | ✅ |
 
 ## What's deferred (Phase 2+)
 
@@ -129,7 +130,7 @@ dotnet run --project src/RethinkWeb.Sample.Chat
 dotnet test
 ```
 
-20 tests across `RethinkWeb.Core.Tests`, `RethinkWeb.Render.Razor.Tests` (Verify snapshots), and `RethinkWeb.Sample.Tasks.Tests` (WebApplicationFactory end-to-end + real `McpClient` ↔ `McpServer` over in-memory pipes).
+27 tests across `RethinkWeb.Core.Tests`, `RethinkWeb.Render.Razor.Tests` (Verify snapshots), and `RethinkWeb.Sample.Tasks.Tests` (WebApplicationFactory end-to-end + real `McpClient` ↔ `McpServer` over in-memory pipes).
 
 ## Documentation
 
@@ -138,6 +139,7 @@ dotnet test
 - [`docs/adding-an-entity.md`](./docs/adding-an-entity.md) — practical walkthrough
 - [`docs/adding-an-action.md`](./docs/adding-an-action.md) — practical walkthrough including MCP exposure
 - [`docs/mcp-clients.md`](./docs/mcp-clients.md) — connect Claude Desktop / MCP Inspector / Cursor / programmatic clients
+- [`docs/multi-tenancy.md`](./docs/multi-tenancy.md) — `UseMultiTenant<TResolver>()`, `ITenantOwned`, EF filter, resolution strategies
 - [`docs/testing.md`](./docs/testing.md) — test patterns per layer, deterministic-by-default rules
 - [`docs/roadmap.md`](./docs/roadmap.md) — what's done, what's Phase 2, what's deliberately not
 

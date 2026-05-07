@@ -6,6 +6,7 @@ using RethinkWeb.Events;
 using RethinkWeb.Manifest;
 using RethinkWeb.Metadata;
 using RethinkWeb.Storage;
+using RethinkWeb.Tenancy;
 
 namespace RethinkWeb;
 
@@ -20,6 +21,15 @@ public sealed class RethinkWebBuilder(IServiceCollection services)
     internal EntityRegistry EntityRegistry { get; } = new();
     internal ActionRegistry ActionRegistry { get; } = new();
 
+    /// <summary>
+    /// True after <see cref="UseMultiTenant{TResolver}"/> has been called. Subsequent
+    /// <see cref="AddEntity{T}"/> calls will layer the tenant decorator on the store
+    /// when the entity implements <see cref="ITenantOwned"/>. Adapter packages
+    /// (Store.EfCore, Store.Marten, etc.) read this to mirror Core's conditional
+    /// decorator stacking.
+    /// </summary>
+    public bool MultiTenantEnabled { get; private set; }
+
     public RethinkWebBuilder AddEntity<TEntity>() where TEntity : class
     {
         EntityRegistry.Register(typeof(TEntity));
@@ -29,9 +39,15 @@ public sealed class RethinkWebBuilder(IServiceCollection services)
         // (UseEfCoreFor, UseMartenFor, etc.) replace this and re-wrap themselves.
         Services.TryAddSingleton<InMemoryEntityStore<TEntity>>();
         Services.TryAddScoped<IEntityStore<TEntity>>(sp =>
-            new PublishingEntityStore<TEntity>(
-                sp.GetRequiredService<InMemoryEntityStore<TEntity>>(),
-                sp.GetRequiredService<IEventBus>()));
+        {
+            IEntityStore<TEntity> store = sp.GetRequiredService<InMemoryEntityStore<TEntity>>();
+            store = new PublishingEntityStore<TEntity>(store, sp.GetRequiredService<IEventBus>());
+            if (MultiTenantEnabled)
+            {
+                store = new TenantScopedEntityStore<TEntity>(store, sp.GetRequiredService<ITenantContext>());
+            }
+            return store;
+        });
         return this;
     }
 
@@ -49,6 +65,31 @@ public sealed class RethinkWebBuilder(IServiceCollection services)
         Services.AddTransient<IEventSubscriber<TEvent>, TSubscriber>();
         return this;
     }
+
+    /// <summary>
+    /// Switches the framework into multi-tenant mode. Every entity registered AFTER
+    /// this call that implements <see cref="ITenantOwned"/> will be auto-scoped to
+    /// the current tenant: saves stamp the TenantId, reads filter by TenantId,
+    /// cross-tenant access throws.
+    ///
+    /// Multi-tenancy is opt-in. If you don't call this, the framework runs in
+    /// single-tenant mode (which is what every sample today does).
+    ///
+    /// The resolver is responsible for extracting the tenant id from per-request
+    /// context (HTTP header, subdomain, JWT claim, etc.). Implement
+    /// <see cref="ITenantResolver"/> in your app for custom resolution; HTTP-host
+    /// adapters (RethinkWeb.Http.MinimalApi) ship default resolvers like
+    /// <c>HeaderTenantResolver</c>.
+    /// </summary>
+    public RethinkWebBuilder UseMultiTenant<TResolver>()
+        where TResolver : class, ITenantResolver
+    {
+        MultiTenantEnabled = true;
+        Services.AddScoped<ITenantResolver, TResolver>();
+        Services.AddScoped<ScopedTenantContext>();
+        Services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<ScopedTenantContext>());
+        return this;
+    }
 }
 
 public static class ServiceCollectionExtensions
@@ -58,6 +99,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IClock, SystemClock>();
         services.TryAddSingleton<IIdGenerator, GuidIdGenerator>();
         services.TryAddScoped<IAuthContext, AllowAllAuthContext>();
+        // Default tenant context is single-tenant; UseMultiTenant overrides this.
+        services.TryAddScoped<ITenantContext, SingleTenantContext>();
         // Scoped because they consume IAuthContext (per-request).
         services.TryAddScoped<IEventBus, InProcEventBus>();
         services.TryAddScoped<IManifestBuilder, ManifestBuilder>();
