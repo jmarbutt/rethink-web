@@ -23,8 +23,12 @@ coverage.cobertura.xml
 # SQLite (sample app local DB)
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
 
 # Verify snapshots — keep .verified.* (committed), ignore .received.* (transient)
 *.received.*
