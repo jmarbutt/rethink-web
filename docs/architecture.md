@@ -1,72 +1,58 @@
 # Architecture
 
-## Layers, abstractions first
+RethinkWeb is organized as an **App Manifest Runtime**: the developer-authored app layer is the center, and every rendering or transport surface reads from the same runtime metadata and permission-scoped manifest.
 
-Every layer is defined by **interfaces in `RethinkWeb.Core`** with a **zero-dependency default implementation** that lives in the same package. Every external dependency (EF Core, Wolverine, Marten, MCP SDK) ships as a *separate adapter package* you opt into. `RethinkWeb.Core` references nothing outside `Microsoft.Extensions.*` abstractions.
+## Layers, Abstractions First
 
-```
+Every layer is defined by **interfaces in `RethinkWeb.Core`** with zero-dependency default implementations where practical. External dependencies (EF Core, Wolverine, Marten, MCP SDK, Hangfire) live in adapter packages you opt into. `RethinkWeb.Core` references nothing outside `Microsoft.Extensions.*` abstractions.
+
+```text
 ┌─────────────────────────────────────────────────────────────┐
+│  App model       Entity, planned View Profile, Query,       │
+│                  Mutation, Action compatibility, Event,     │
+│                  future Lifecycle Fact metadata.            │
+├─────────────────────────────────────────────────────────────┤
+│  Manifest layer  Permission-scoped public contract for      │
+│                  renderers, HTTP, MCP, docs, inspectors,    │
+│                  agents, and future tooling.                │
+├─────────────────────────────────────────────────────────────┤
 │  HTTP layer      ASP.NET Core minimal API endpoint mapper.  │
-│                  Routes /<slug>, /<slug>/<id>, actions,     │
-│                  manifest. HTMX-aware: returns fragments     │
-│                  to HX-Request, full pages otherwise.        │
+│                  Routes /<slug>, /<slug>/<id>, queries,     │
+│                  mutations/actions, manifest. HTMX-aware.   │
 ├─────────────────────────────────────────────────────────────┤
-│  Render layer    IEntityRenderer.                            │
-│                  Default impl: Razor Components +            │
-│                  HtmlRenderer for server-side static         │
-│                  rendering. Swap freely.                     │
+│  Render layer    IEntityRenderer. Default: Razor Components │
+│                  + HtmlRenderer for server-side rendering.  │
+│                  Future renderers should consume profiles.  │
 ├─────────────────────────────────────────────────────────────┤
-│  Operation layer IQuery<TInput, TOutput>,                    │
-│                  IMutation<TEntity, TInput, TOutput>,        │
-│                  IAction<TEntity, TInput, TOutput>           │
-│                  compatibility, registries, dispatchers.      │
-│                  Single operation surfaces as HTTP, MCP,      │
-│                  manifest, and future renderer controls.      │
+│  Operation layer IQuery<TInput, TOutput>,                   │
+│                  IMutation<TEntity, TInput, TOutput>,       │
+│                  IAction<TEntity, TInput, TOutput>          │
+│                  compatibility, registries, dispatchers.    │
 ├─────────────────────────────────────────────────────────────┤
 │  Event layer     IEventBus + IEventSubscriber<T>.           │
-│                  Default: in-proc synchronous bus            │
-│                  (~50 lines, no deps). Adapter packages:    │
-│                  Bus.Wolverine, Bus.MediatR, Bus.MassTransit.│
+│                  Default: in-proc synchronous bus.          │
+│                  Adapter packages can make this durable.    │
 ├─────────────────────────────────────────────────────────────┤
-│  Storage layer   IEntityStore<T>.                            │
-│                  Default: in-memory dictionary store         │
-│                  (for tests + tiny apps). Adapter:          │
-│                  Store.EfCore (shipped), Store.Marten,       │
-│                  Store.Dapper.                               │
+│  Lifecycle layer Planned ILifecycleSink + operation fact    │
+│                  models. Append-only and observational.     │
+├─────────────────────────────────────────────────────────────┤
+│  Storage layer   IEntityStore<T>. Default: in-memory store. │
+│                  Adapter: Store.EfCore today, others later. │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The **metadata system** (`[Entity]`, `[TextBox]`, `[Query]`, `[Mutation]`, etc.) lives in `Core` as the authoring model. The **manifest JSON** is the public contract that renderers, MCP clients, docs, LLMs, and the future Inspector consume.
+The metadata system (`[Entity]`, field attributes, `[Query]`, `[Mutation]`, `[Action]`, etc.) is the authoring model. The manifest JSON is the public contract.
 
-## Pluggability rule
-
-> No `new SomeImplementation()` in framework code, ever. Constructor-inject `IFoo`. Register a default with `TryAddSingleton`/`TryAddScoped` so user overrides win without `services.Remove()` gymnastics.
-
-If a primitive is registered as `Singleton` but consumes `Scoped` services (e.g. `IAuthContext`), it must itself be `Scoped`. The test host enforces this; production wouldn't catch it. (See [`testing.md`](./testing.md) — this exact bug surfaced during initial scaffolding and is why `IEventBus` and `IManifestBuilder` are scoped, not singleton.)
-
-## Package layout
-
-| Package | Depends on | Purpose |
-|---|---|---|
-| `RethinkWeb.Core` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions` | Abstractions, attributes, in-proc defaults, query/mutation/action registries, manifest builder. |
-| `RethinkWeb.Render.Razor` | `Core`, `Microsoft.AspNetCore.Components.Web` | Razor Components renderer using `HtmlRenderer`. Default `IEntityRenderer`. |
-| `RethinkWeb.Http.MinimalApi` | `Core`, ASP.NET Core | Endpoint mapper, form binder, HTMX detection. |
-| `RethinkWeb.Mcp` | `Core`, `ModelContextProtocol.AspNetCore` | Hosts a standards-compliant MCP server (Streamable HTTP transport) at `/mcp`. Builds the `McpServerTool` collection dynamically from `IActionRegistry`. |
-| `RethinkWeb.Store.EfCore` | `Core`, `Microsoft.EntityFrameworkCore` | Swap-in `EfCoreEntityStore<TEntity, TContext>`. |
-| `RethinkWeb.Sample.Notes` | All of the above + `Microsoft.EntityFrameworkCore.Sqlite` | Smallest possible sample — one entity, no actions, no events. |
-| `RethinkWeb.Sample.Tasks` | Same | Canonical sample — adds an action + `EntitySaved<T>` subscriber. The test suite targets this one. |
-| `RethinkWeb.Sample.Chat` | Same | Real-time sample — two entities, action on a parent, HTMX-SSE for live updates. Demonstrates the escape hatch for hand-rolled HTML. |
-
-A user can build a working app with just `Core + Render.Razor + Http.MinimalApi + Store.EfCore`. No Wolverine, no Marten, no MCP. Pay-as-you-go.
-
-## Manifest as the public contract
+## Manifest As The Public Contract
 
 ```text
 C# app code
   Entities + fields
+  View Profiles (planned)
   Queries
   Mutations/actions
-  Events + triggers
+  Events
+  Lifecycle facts (planned)
   Permissions
         |
         v
@@ -76,49 +62,98 @@ Runtime metadata model
 Manifest JSON, scoped by tenant + user + permissions
         |
         +--> HTMX/Razor renderer for optimized end-user UX
-        +--> Inspector for dev/admin exploration and action testing
+        +--> Inspector for dev/admin exploration and operation testing
         +--> MCP production surface for LLM clients
+        +--> HTTP endpoints
         +--> Future renderers and documentation helpers
+        +--> Agent context
 ```
 
-The MVC/HTMX app a developer creates is an optimized UX for end users. The framework's automatic surfaces, especially the Inspector and MCP, should read from the same manifest contract.
+The MVC/HTMX app a developer creates is an optimized UX for end users. It is not the whole framework. MCP, docs, inspectors, and future renderers should not scrape that UI; they should consume the manifest.
 
-## Dependency direction
+## Package Layout
 
-```
+| Package | Depends on | Purpose |
+|---|---|---|
+| `RethinkWeb.Core` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions` | Abstractions, attributes, in-proc defaults, query/mutation/action registries, manifest builder. Future home for View Profile and Lifecycle abstractions. |
+| `RethinkWeb.Render.Razor` | `Core`, `Microsoft.AspNetCore.Components.Web` | Razor Components renderer using `HtmlRenderer`. Default `IEntityRenderer`. |
+| `RethinkWeb.Http.MinimalApi` | `Core`, ASP.NET Core | Endpoint mapper, form binder, HTMX detection. |
+| `RethinkWeb.Mcp` | `Core`, `ModelContextProtocol.AspNetCore` | Hosts a standards-compliant MCP server at `/mcp`. Builds tools from queries, mutations, and action compatibility registrations. |
+| `RethinkWeb.Store.EfCore` | `Core`, `Microsoft.EntityFrameworkCore` | Swap-in `EfCoreEntityStore<TEntity, TContext>`. |
+| `RethinkWeb.Sample.Notes` | All of the above + SQLite | Smallest sample: one entity, no operations, no events. |
+| `RethinkWeb.Sample.Tasks` | Same | Canonical MVP sample: query, action, mutation, event subscriber, MCP coverage. |
+| `RethinkWeb.Sample.Chat` | Same | Real-time sample with custom HTML escape hatch. |
+
+A user can build a working app with just `Core + Render.Razor + Http.MinimalApi + Store.EfCore`. No Wolverine, no Marten, no MCP. Pay-as-you-go.
+
+## Dependency Direction
+
+```text
                         Sample.Tasks (web app)
                        /     |       \      \
-                      ↓      ↓        ↓      ↓
+                      v      v        v      v
               Render.Razor  Http   Mcp   Store.EfCore
                        \     |    /        /
-                        ↓    ↓   ↓        ↓
+                        v    v   v        v
                           Core (abstractions + defaults)
                                   |
-                                  ↓
+                                  v
                   Microsoft.Extensions.* abstractions only
 ```
 
 `Core` knows nothing about HTTP, Razor, MCP, or EF. Each adapter knows about `Core` and one external library. Apps know about `Core` and the adapters they choose to use.
 
-## Why this shape
+## Pluggability Rule
 
-1. **Test isolation.** Every layer can be unit-tested against the in-proc defaults in `Core` with no infra spun up. See [`testing.md`](./testing.md).
-2. **Avoid framework lock-in.** If Wolverine becomes a tire fire, swap to MediatR by changing one `Use*Bus()` call. App code doesn't notice.
-3. **Future-proofing the renderer.** Today it's Razor Components. Tomorrow it could be a string builder, a JSON renderer for mobile, or whatever Microsoft renames Blazor to next year. The interface stays.
-4. **The metadata is portable.** Entity attributes are pure data. They could drive a different framework's UI generator with no changes — this is also why prior attempts in the author's career survived three rewrites of the rendering layer.
+> No `new SomeImplementation()` in framework code, ever. Constructor-inject `IFoo`. Register a default with `TryAddSingleton`/`TryAddScoped` so user overrides win without `services.Remove()` gymnastics.
 
-## What's deliberately NOT abstracted
+If a primitive is registered as `Singleton` but consumes `Scoped` services (for example `IAuthContext`), it must itself be `Scoped`. The test host enforces this; production would not catch it early. See [`testing.md`](./testing.md).
+
+## View Profiles Boundary
+
+The current MVP lets field attributes carry simple grid/edit hints. That is acceptable for a prototype and too small for the thesis.
+
+The intended split:
+
+- Entity metadata owns field semantics, validation, permissions, and storage participation.
+- View Profiles own context-specific presentation: grid, detail, edit, card, lookup, and operation forms.
+- Renderers own HTML/control implementation and may swap default controls for richer ones.
+- Custom pages remain first-class escape hatches when generated views are the wrong tool.
+
+This boundary matters because "richer combo box for contacts" should not require changing the business object into a UI component catalog.
+
+## Lifecycle Boundary
+
+Lifecycle is planned as a core observational layer, not an adapter afterthought.
+
+The first version should record operation facts:
+
+- Actor, tenant, timestamp, and correlation id
+- Operation kind and name
+- Entity slug and id when relevant
+- Status, duration, and error summary
+- Compact safe summaries of input/output or before/after state
+
+It should not be event sourcing in v1. Full snapshots, point-in-time reconstruction, and Marten-style event storage are future adapter pressure, not the first abstraction.
+
+## Why This Shape
+
+1. **The app layer is stable.** Rendering and transport surfaces can change without forcing the business contract to move.
+2. **The manifest is portable.** Web, MCP, docs, inspectors, and agents read the same contract instead of reverse-engineering each other.
+3. **Test isolation stays practical.** Every layer can be unit-tested against in-proc defaults.
+4. **Framework lock-in is bounded.** EF, Wolverine, Marten, Hangfire, and MCP remain opt-in adapter concerns.
+5. **AI agents get a map.** Agents can read the manifest and local conventions before editing code, instead of spelunking through disconnected controllers and UI files like tiny confused interns.
+
+## What's Deliberately Not Abstracted
 
 - **Razor itself** is not behind an interface. The renderer is. If you want a different templating engine, write a new `IEntityRenderer`.
 - **ASP.NET Core** is not behind an interface. The endpoint mapper is an extension method on `IEndpointRouteBuilder`. If you want a different HTTP host, write a different mapper package.
-- **The `[Entity]`/`[TextBox]`/etc. attributes** are not behind an interface. They are the data contract. Treat them as a versioned schema — additive changes only.
-- **Query read-only behavior** is semantic, not enforced by a sandbox. Queries receive a read-oriented context, but a handler can still inject services. Production apps should treat side-effecting queries as a contract violation.
+- **The metadata attributes** are not hidden behind another abstraction. They are the C# authoring model and should evolve additively.
+- **Query read-only behavior** is semantic, not sandboxed. Queries receive a read-oriented context, but a handler can still inject services. Production apps should treat side-effecting queries as a contract violation.
 
-## Where it gets harder, not easier
+## Where It Gets Harder
 
-Read [`../README.md`](../README.md#honest-caveats) and the design doc (`~/.claude/plans/ok-so-i-want-precious-bird.md` on the author's machine) for the full list. Headlines:
-
-- The "one weird screen" — analytics dashboards, multi-step wizards, drag-drop — won't fit the renderer. Escape hatch: write a `.razor` partial directly.
-- HTMX roundtrips on every change feel slower than React's optimistic updates. Mitigation: Alpine.js for local interactivity.
-- Stateless server + stateless HTMX makes multi-step form state awkward. Hidden fields, server-side draft entities, or session storage. None as clean as React's local state.
-- "Same actions for mobile" means either a webview or a separate JSON API. Pick one consciously.
+- Generated views will not fit every screen. Analytics dashboards, multi-step wizards, drag/drop boards, and dense operational consoles still need custom pages.
+- View Profiles must avoid becoming a visual designer with code syntax. The point is a renderer contract, not a no-code swamp.
+- HTMX roundtrips can feel slower than optimistic client state. Use local interactivity where it earns its keep.
+- "Same app for mobile" means webview, manifest-driven custom renderer, or separate JSON API. Pick consciously.
