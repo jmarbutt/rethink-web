@@ -51,3 +51,17 @@ Do not create a new surface that bypasses registries, dispatchers, permission ch
 `OpusKit` is the preferred name. Until the codebase is renamed, preserve existing `RethinkWeb.*` namespaces, project names, paths, and docs unless the task explicitly asks for the rename.
 
 Avoid names that overfit to HTMX, Razor, MCP, Postgres, or anti-React positioning. Those are implementation surfaces, not the center of gravity.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for `jmarbutt/OpusKit` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the default five-label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repo uses a single-context domain-doc layout. See `docs/agents/domain.md`.
