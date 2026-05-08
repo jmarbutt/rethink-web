@@ -109,6 +109,8 @@ A user can build a working app with just `Core + Render.Razor + Http.MinimalApi 
 
 If a primitive is registered as `Singleton` but consumes `Scoped` services (for example `IAuthContext`), it must itself be `Scoped`. The test host enforces this; production would not catch it early. See [`testing.md`](./testing.md).
 
+For a visual map of package and runtime boundaries, see [`architecture-boundaries.md`](./architecture-boundaries.md).
+
 ## View Profiles Boundary
 
 The current MVP lets field attributes carry simple grid/edit hints. That is acceptable for a prototype and too small for the thesis.
