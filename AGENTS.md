@@ -2,7 +2,7 @@
 
 ## Project Shape
 
-This repository is a .NET 9 prototype for an app-manifest runtime. The current package and docs use the name `RethinkWeb`, but treat that as a working name, not a permanent brand.
+This repository is a .NET 9 prototype for an app-manifest runtime. The current package and docs use the name `RethinkWeb`, but the intended product name is `OpusKit`.
 
 The framework center is `RethinkWeb.Core`. Core owns the app contract: metadata, registries, manifest generation, dispatchers, lifecycle contracts, events, auth, tenancy, clock/id abstractions, and in-proc defaults.
 
@@ -48,6 +48,6 @@ Do not create a new surface that bypasses registries, dispatchers, permission ch
 
 ## Naming
 
-`RethinkWeb` is a working name. If renaming comes up, favor names that describe the product thesis: a manifest-centered app runtime for operational tools, not just a web renderer or CRUD generator.
+`OpusKit` is the preferred name. Until the codebase is renamed, preserve existing `RethinkWeb.*` namespaces, project names, paths, and docs unless the task explicitly asks for the rename.
 
 Avoid names that overfit to HTMX, Razor, MCP, Postgres, or anti-React positioning. Those are implementation surfaces, not the center of gravity.
