@@ -33,8 +33,9 @@ Every layer is defined by **interfaces in `RethinkWeb.Core`** with zero-dependen
 │                  Default: in-proc synchronous bus.          │
 │                  Adapter packages can make this durable.    │
 ├─────────────────────────────────────────────────────────────┤
-│  Lifecycle layer Planned ILifecycleSink + operation fact    │
-│                  models. Append-only and observational.     │
+│  Lifecycle layer ILifecycleSink/ILifecycleReader +          │
+│                  operation fact models. Append-only and     │
+│                  observational.                             │
 ├─────────────────────────────────────────────────────────────┤
 │  Storage layer   IEntityStore<T>. Default: in-memory store. │
 │                  Adapter: Store.EfCore today, others later. │
@@ -75,7 +76,7 @@ The MVC/HTMX app a developer creates is an optimized UX for end users. It is not
 
 | Package | Depends on | Purpose |
 |---|---|---|
-| `RethinkWeb.Core` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions` | Abstractions, attributes, in-proc defaults, query/mutation/action registries, manifest builder. Future home for View Profile and Lifecycle abstractions. |
+| `RethinkWeb.Core` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions` | Abstractions, attributes, in-proc defaults, query/mutation/action registries, manifest builder, lifecycle contracts. Future home for View Profile abstractions. |
 | `RethinkWeb.Render.Razor` | `Core`, `Microsoft.AspNetCore.Components.Web` | Razor Components renderer using `HtmlRenderer`. Default `IEntityRenderer`. |
 | `RethinkWeb.Http.MinimalApi` | `Core`, ASP.NET Core | Endpoint mapper, form binder, HTMX detection. |
 | `RethinkWeb.Mcp` | `Core`, `ModelContextProtocol.AspNetCore` | Hosts a standards-compliant MCP server at `/mcp`. Builds tools from queries, mutations, and action compatibility registrations. |
@@ -126,9 +127,9 @@ This boundary matters because "richer combo box for contacts" should not require
 
 ## Lifecycle Boundary
 
-Lifecycle is planned as a core observational layer, not an adapter afterthought.
+Lifecycle is a core observational layer, not an adapter afterthought. Core owns the lifecycle fact model plus `ILifecycleSink` and `ILifecycleReader`; provider packages own durable storage mechanics.
 
-The first version should record operation facts:
+The first durable version should record operation facts:
 
 - Actor, tenant, timestamp, and correlation id
 - Operation kind and name
@@ -137,6 +138,8 @@ The first version should record operation facts:
 - Compact safe summaries of input/output or before/after state
 
 It should not be event sourcing in v1. Full snapshots, point-in-time reconstruction, and Marten-style event storage are future adapter pressure, not the first abstraction.
+
+The default Core registration is intentionally non-persistent. `NullLifecycleStore` preserves current runtime behavior, while `InMemoryLifecycleStore` gives tests and development hosts a deterministic implementation. Durable history belongs in adapter packages such as the planned Postgres store.
 
 ## Why This Shape
 
