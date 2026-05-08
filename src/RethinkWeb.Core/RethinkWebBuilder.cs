@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using RethinkWeb.Actions;
 using RethinkWeb.Auth;
 using RethinkWeb.Events;
+using RethinkWeb.Lifecycle;
 using RethinkWeb.Manifest;
 using RethinkWeb.Metadata;
 using RethinkWeb.Mutations;
@@ -126,6 +127,9 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IQueryDispatcher, QueryDispatcher>();
         services.TryAddScoped<IMutationDispatcher, MutationDispatcher>();
         services.TryAddSingleton<IQueryCache, NullQueryCache>();
+        services.TryAddSingleton<NullLifecycleStore>();
+        services.TryAddSingleton<ILifecycleSink>(sp => sp.GetRequiredService<NullLifecycleStore>());
+        services.TryAddSingleton<ILifecycleReader>(sp => sp.GetRequiredService<NullLifecycleStore>());
 
         var builder = new RethinkWebBuilder(services);
         services.AddSingleton<IEntityRegistry>(_ => builder.EntityRegistry);
